@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { cancel, intro, log, outro } from "@clack/prompts";
 import {
   hasStoredAuth,
   listOAuthProviders,
@@ -47,13 +48,14 @@ export async function runAuthCommand(
   options: AuthCommandOptions,
 ): Promise<number> {
   const env = options.env ?? process.env;
+  const stderr = { output: process.stderr };
 
   const providers = listOAuthProviders(env);
   const providerList = formatProviderList(providers);
   if (!options.provider) {
-    console.error("--provider requires a value.");
+    log.error("--provider requires a value.", stderr);
     if (providerList.length > 0) {
-      console.error(`Supported providers: ${providerList}`);
+      log.error(`Supported providers: ${providerList}`, stderr);
     }
     return 1;
   }
@@ -62,28 +64,30 @@ export async function runAuthCommand(
     (provider) => provider.id === options.provider,
   );
   if (!selectedProvider) {
-    console.error(`Unknown provider: ${options.provider}`);
+    log.error(`Unknown provider: ${options.provider}`, stderr);
     if (providerList.length > 0) {
-      console.error(`Supported providers: ${providerList}`);
+      log.error(`Supported providers: ${providerList}`, stderr);
     }
     return 1;
   }
 
   if (!process.stdin.isTTY) {
-    console.error("Non-interactive shell does not support OAuth login.");
+    log.error("Non-interactive shell does not support OAuth login.", stderr);
     return 1;
   }
+
+  intro("Auth");
 
   let replaceExisting = false;
   if (hasStoredAuth(selectedProvider.id, env)) {
     replaceExisting = await promptConfirm(
-      `Auth already configured for ${selectedProvider.name}. Replace? [y/N] `,
+      `Auth already configured for ${selectedProvider.name}. Replace?`,
     );
     if (!replaceExisting) {
-      console.log("Cancelled.");
+      cancel("Cancelled.");
       return 0;
     }
-    console.log(`Starting OAuth login for ${selectedProvider.name}...`);
+    log.info(`Starting OAuth login for ${selectedProvider.name}...`);
   }
 
   try {
@@ -94,19 +98,19 @@ export async function runAuthCommand(
       onAuth: (info) => {
         const opened = tryOpenBrowser(info.url);
         if (opened) {
-          console.log(
+          log.info(
             `Opened your browser. If it did not open, visit ${info.url}`,
           );
         } else {
-          console.log(`Open ${info.url} to authenticate.`);
+          log.info(`Open ${info.url} to authenticate.`);
         }
         if (info.instructions) {
-          console.log(info.instructions);
+          log.info(info.instructions);
         }
       },
       onPrompt: async (prompt) => {
         const answer = await promptInput(
-          `${prompt.message}${prompt.message.endsWith(" ") ? "" : " "}`,
+          prompt.message,
           prompt.allowEmpty ?? false,
         );
         if (answer === null && !prompt.allowEmpty) {
@@ -116,13 +120,13 @@ export async function runAuthCommand(
       },
       onProgress: (message) => {
         if (message && message.trim().length > 0) {
-          console.log(message);
+          log.info(message);
         }
       },
       onManualCodeInput: selectedProvider.usesCallbackServer
         ? undefined
         : async () => {
-            const manual = await promptInput("Enter authorization code: ");
+            const manual = await promptInput("Enter authorization code");
             if (!manual) {
               throw new ProviderAuthError(
                 "OAuth cancelled.",
@@ -133,16 +137,16 @@ export async function runAuthCommand(
           },
     });
 
-    console.log(`OAuth login complete for ${result.providerName}.`);
+    outro(`OAuth login complete for ${result.providerName}.`);
     return 0;
   } catch (error) {
     const authError = error instanceof ProviderAuthError ? error : undefined;
     const message = authError?.message ?? "OAuth failed.";
     if (authError?.code === "oauth_cancelled") {
-      console.log(message);
+      cancel(message);
       return 0;
     }
-    console.error(message);
+    log.error(message, stderr);
     return 1;
   }
 }

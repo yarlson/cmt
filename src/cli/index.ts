@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { log } from "@clack/prompts";
 import { runAuthCommand } from "../cli-shell/authCommand.js";
 import { runCommitCommand } from "../cli-shell/commitCommand.js";
 
@@ -20,6 +21,10 @@ function parseTypes(value: string | undefined): string[] | undefined {
     .filter((entry) => entry.length > 0);
   const unique = Array.from(new Set(normalized));
   return unique.length > 0 ? unique : undefined;
+}
+
+function printError(message: string): void {
+  log.error(message, { output: process.stderr });
 }
 
 async function main(): Promise<void> {
@@ -66,7 +71,7 @@ async function main(): Promise<void> {
       if (flag.startsWith("--provider=")) {
         provider = flag.slice("--provider=".length).trim();
         if (!provider) {
-          console.error("--provider requires a value.");
+          printError("--provider requires a value.");
           printUsage();
           process.exitCode = 1;
           return;
@@ -76,7 +81,7 @@ async function main(): Promise<void> {
       if (flag === "--provider") {
         provider = flags[index + 1]?.trim();
         if (!provider) {
-          console.error("--provider requires a value.");
+          printError("--provider requires a value.");
           printUsage();
           process.exitCode = 1;
           return;
@@ -87,7 +92,7 @@ async function main(): Promise<void> {
       if (flag.startsWith("--model=")) {
         model = flag.slice("--model=".length).trim();
         if (!model) {
-          console.error("--model requires a value.");
+          printError("--model requires a value.");
           printUsage();
           process.exitCode = 1;
           return;
@@ -97,7 +102,7 @@ async function main(): Promise<void> {
       if (flag === "--model") {
         model = flags[index + 1]?.trim();
         if (!model) {
-          console.error("--model requires a value.");
+          printError("--model requires a value.");
           printUsage();
           process.exitCode = 1;
           return;
@@ -108,7 +113,7 @@ async function main(): Promise<void> {
       if (flag.startsWith("--types=")) {
         types = parseTypes(flag.slice("--types=".length));
         if (!types) {
-          console.error("--types requires a comma-separated list.");
+          printError("--types requires a comma-separated list.");
           printUsage();
           process.exitCode = 1;
           return;
@@ -118,7 +123,7 @@ async function main(): Promise<void> {
       if (flag === "--types") {
         types = parseTypes(flags[index + 1]);
         if (!types) {
-          console.error("--types requires a comma-separated list.");
+          printError("--types requires a comma-separated list.");
           printUsage();
           process.exitCode = 1;
           return;
@@ -127,7 +132,7 @@ async function main(): Promise<void> {
         continue;
       }
 
-      console.error(`Unknown flag: ${flag}`);
+      printError(`Unknown flag: ${flag}`);
       printUsage();
       process.exitCode = 1;
       return;
@@ -155,7 +160,7 @@ async function main(): Promise<void> {
       if (flag.startsWith("--provider=")) {
         provider = flag.slice("--provider=".length).trim();
         if (!provider) {
-          console.error("--provider requires a value.");
+          printError("--provider requires a value.");
           printUsage();
           process.exitCode = 1;
           return;
@@ -165,7 +170,7 @@ async function main(): Promise<void> {
       if (flag === "--provider") {
         provider = flags[index + 1]?.trim();
         if (!provider) {
-          console.error("--provider requires a value.");
+          printError("--provider requires a value.");
           printUsage();
           process.exitCode = 1;
           return;
@@ -178,7 +183,7 @@ async function main(): Promise<void> {
         return;
       }
 
-      console.error(`Unknown flag: ${flag}`);
+      printError(`Unknown flag: ${flag}`);
       printUsage();
       process.exitCode = 1;
       return;
@@ -188,7 +193,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.error(`Unknown command: ${command}`);
+  printError(`Unknown command: ${command}`);
   printUsage();
   process.exitCode = 1;
   return;
@@ -196,6 +201,6 @@ async function main(): Promise<void> {
 
 main().catch((error) => {
   const message = error instanceof Error ? error.message : "Unexpected error";
-  console.error(message);
+  printError(message);
   process.exitCode = 1;
 });

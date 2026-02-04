@@ -219,7 +219,7 @@ describe("commit flow", () => {
     expect(result.stderr).toContain("Provider timeout");
   });
 
-  it("warns and proceeds when diff is truncated", async () => {
+  it("proceeds when diff is truncated", async () => {
     const repoDir = await createTempDir("cmt-repo-");
     initGitRepo(repoDir);
     await writeFile(repoDir, "README.md", "line1\nline2\nline3\n");
@@ -238,10 +238,10 @@ describe("commit flow", () => {
 
     const result = runCli(repoDir, ["commit", "--yes"], env);
     expect(result.exitCode).toBe(0);
-    expect(`${result.stdout}${result.stderr}`).toContain("Diff truncated");
+    expect(`${result.stdout}${result.stderr}`).not.toContain("Diff truncated");
   });
 
-  it("warns when only binary files change", async () => {
+  it("proceeds when only binary files change", async () => {
     const repoDir = await createTempDir("cmt-repo-");
     initGitRepo(repoDir);
 
@@ -253,7 +253,7 @@ describe("commit flow", () => {
     const result = runCli(repoDir, ["commit", "--yes"], env);
 
     expect(result.exitCode).toBe(0);
-    expect(`${result.stdout}${result.stderr}`).toContain(
+    expect(`${result.stdout}${result.stderr}`).not.toContain(
       "Only binary files changed",
     );
   });

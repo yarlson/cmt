@@ -14,7 +14,8 @@
     "lint:fix": "biome check --write ."
   },
   "dependencies": {
-    "@mariozechner/pi-coding-agent": "^0.51.5"
+    "@clack/prompts": "^1.0.0",
+    "@mariozechner/pi-coding-agent": "^0.51.6"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",

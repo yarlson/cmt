@@ -1,3 +1,4 @@
+import { cancel, intro, log, note, outro, spinner } from "@clack/prompts";
 import {
   resolveCommitConfig,
   resolveDiffLimits,
@@ -43,42 +44,8 @@ export interface CommitCommandOptions {
   cwd?: string;
 }
 
-function printPreview(
-  message: string,
-  rationale?: string,
-  warnings: string[] = [],
-): void {
-  for (const warning of warnings) {
-    console.log(warning);
-  }
-  console.log("Preview:");
-  console.log(message);
-  if (rationale) {
-    console.log("\nRationale:");
-    console.log(rationale);
-  }
-}
-
-function getSubjectLine(message: string): string {
-  const [line] = message.split(/\r?\n/);
-  return line ?? "";
-}
-
-function isConventionalCommit(
-  message: string,
-  allowedTypes: string[],
-): boolean {
-  const subject = getSubjectLine(message).trim();
-  if (subject.length === 0) {
-    return false;
-  }
-
-  const match = subject.match(/^(\w+)(\([^)]+\))?:\s+(.+)$/);
-  if (!match) {
-    return false;
-  }
-
-  return allowedTypes.includes(match[1]);
+function printPreview(message: string): void {
+  note(message, "Preview", { format: (line) => line });
 }
 
 const MAX_STAGING_PREVIEW_FILES = 20;
@@ -88,51 +55,14 @@ function printFileList(
   files: string[],
   maxEntries = MAX_STAGING_PREVIEW_FILES,
 ): void {
-  console.log(header);
-  if (files.length === 0) {
-    console.log("  (none)");
-    return;
-  }
-
   const entries = files.slice(0, maxEntries);
-  for (const file of entries) {
-    console.log(`  ${file}`);
-  }
   const remaining = files.length - entries.length;
+  const lines =
+    entries.length > 0 ? entries.map((file) => `- ${file}`) : ["(none)"];
   if (remaining > 0) {
-    console.log(`  ...and ${remaining} more`);
+    lines.push(`...and ${remaining} more`);
   }
-}
-
-function formatTruncationWarning(diff: {
-  diffTruncated: boolean;
-  filesTruncated: boolean;
-  files: string[];
-  totalFiles: number;
-  diffBytes: number;
-  maxDiffBytes: number;
-}): string | undefined {
-  if (!diff.diffTruncated && !diff.filesTruncated) {
-    return undefined;
-  }
-
-  const details: string[] = [];
-  if (diff.diffTruncated) {
-    details.push(
-      `diff truncated to ${diff.maxDiffBytes} bytes from ${diff.diffBytes}`,
-    );
-  }
-  if (diff.filesTruncated) {
-    details.push(
-      `file list limited to ${diff.files.length} of ${diff.totalFiles}`,
-    );
-  }
-
-  const prefix = diff.diffTruncated
-    ? "Diff truncated for safety"
-    : "File list truncated for safety";
-  const detailText = details.length > 0 ? ` (${details.join("; ")}).` : ".";
-  return `Warning: ${prefix}${detailText} Consider --edit to review the message.`;
+  note(lines.join("\n"), header, { format: (line) => line });
 }
 
 export async function runCommitCommand(
@@ -140,20 +70,22 @@ export async function runCommitCommand(
 ): Promise<number> {
   const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
+  const stderr = { output: process.stderr };
   const allowEdit = options.edit;
   const allowRegen = options.regen;
   const includeUnstaged = options.includeUnstaged;
   let stagingAttempted = false;
 
   if (allowEdit && !process.stdin.isTTY) {
-    console.error(
+    log.error(
       "Non-interactive shell does not support --edit. Set $EDITOR and run interactively.",
+      stderr,
     );
     return 1;
   }
 
   if (!process.stdin.isTTY && !options.yes) {
-    console.error("Non-interactive shell requires --yes.");
+    log.error("Non-interactive shell requires --yes.", stderr);
     return 1;
   }
 
@@ -162,19 +94,17 @@ export async function runCommitCommand(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Repo validation failed.";
-    console.error(message);
+    log.error(message, stderr);
     return 1;
   }
+
+  intro("Commit");
 
   if (includeUnstaged) {
     const unstagedTrackedFiles = getUnstagedTrackedFiles(cwd);
     const untrackedFiles = getUntrackedFiles(cwd);
 
-    if (unstagedTrackedFiles.length === 0) {
-      console.warn(
-        "No unstaged tracked changes found; continuing with staged changes.",
-      );
-    } else {
+    if (unstagedTrackedFiles.length > 0) {
       printFileList(
         `Tracked files to stage (${unstagedTrackedFiles.length}):`,
         unstagedTrackedFiles,
@@ -190,11 +120,9 @@ export async function runCommitCommand(
 
     if (unstagedTrackedFiles.length > 0) {
       if (!options.yes) {
-        const confirmed = await promptConfirm(
-          "Stage these tracked changes? [y/N] ",
-        );
+        const confirmed = await promptConfirm("Stage these tracked changes?");
         if (!confirmed) {
-          console.log("Cancelled.");
+          cancel("Cancelled.");
           return 0;
         }
       }
@@ -204,9 +132,9 @@ export async function runCommitCommand(
         stageTrackedChanges(cwd);
       } catch (error) {
         const gitError = error instanceof GitContextError ? error : undefined;
-        console.error(gitError?.message ?? "Staging failed.");
+        log.error(gitError?.message ?? "Staging failed.", stderr);
         if (gitError?.details) {
-          console.error(gitError.details);
+          log.error(gitError.details, stderr);
         }
         return 1;
       }
@@ -218,15 +146,11 @@ export async function runCommitCommand(
     const message = stagingAttempted
       ? "Staging produced no changes to commit."
       : "No staged changes to commit.";
-    console.log(message);
+    outro(message);
     return 0;
   }
 
-  const diffLimitsResolution = resolveDiffLimits(env);
-  const limits = diffLimitsResolution.limits;
-  for (const warning of diffLimitsResolution.warnings) {
-    console.warn(warning);
-  }
+  const limits = resolveDiffLimits(env).limits;
   const configResolution = await resolveCommitConfig({
     cwd,
     env,
@@ -243,10 +167,6 @@ export async function runCommitCommand(
     },
   });
 
-  for (const warning of configResolution.warnings) {
-    console.warn(warning);
-  }
-
   const allowedTypes = configResolution.effective.allowedTypes;
   const subjectMaxLength = configResolution.effective.subjectMaxLength;
   const scopeMappings = configResolution.effective.scopeMappings;
@@ -258,41 +178,38 @@ export async function runCommitCommand(
     diff = collectBoundedDiff(cwd, limits);
   } catch (error) {
     const gitError = error instanceof GitContextError ? error : undefined;
-    console.error(gitError?.message ?? "Failed to collect diff.");
+    log.error(gitError?.message ?? "Failed to collect diff.", stderr);
     if (gitError?.details) {
-      console.error(gitError.details);
+      log.error(gitError.details, stderr);
     }
     return 1;
   }
-
-  const binaryOnlyChanges =
-    diff.diff.length === 0 &&
-    diff.binaryFiles.length > 0 &&
-    diff.files.length === diff.binaryFiles.length;
 
   const mappedScope = resolveScopeFromMappings(diff.files, scopeMappings);
 
   let providerContext: ProviderAuthContext;
   try {
     providerContext = await createProviderAuthContext({
-      promptForKey: () => promptSecret("API key: "),
+      promptForKey: () => promptSecret("API key"),
       env,
       providerId,
       modelId,
     });
     await providerContext.provider.verifyApiKey();
     if (providerContext.modelFallbackUsed && modelId) {
-      console.warn(
+      log.info(
         `Model ${modelId} not found; using ${providerContext.modelId} instead.`,
       );
     }
   } catch (error) {
     const authError = error instanceof ProviderAuthError ? error : undefined;
-    console.error(authError?.message ?? "Auth failed.");
+    log.error(authError?.message ?? "Auth failed.", stderr);
     return 1;
   }
 
   let proposal: CommitProposal;
+  const proposalSpinner = spinner();
+  proposalSpinner.start("Generating commit message");
   try {
     proposal = await generateCommitProposal(
       {
@@ -305,29 +222,29 @@ export async function runCommitCommand(
     if (mappedScope) {
       proposal.scope = mappedScope;
     }
+    proposalSpinner.stop("Commit message generated");
   } catch (error) {
+    proposalSpinner.stop("Failed to generate commit message");
     const message =
       error instanceof MessageEngineError ? error.message : "Proposal failed.";
-    console.error(message);
+    log.error(message, stderr);
     return 1;
   }
 
   let message = formatCommitMessage(proposal);
-  let rationale = proposal.rationale;
-
   if (allowEdit) {
     const editorCommand = env.EDITOR?.trim();
     if (!editorCommand) {
       const warning =
         "$EDITOR is not set. Set EDITOR to use --edit. Continuing without edit.";
       if (options.yes) {
-        console.warn(warning);
+        log.info(warning);
       } else {
         const continueWithoutEdit = await promptConfirm(
-          "$EDITOR is not set. Set EDITOR to use --edit. Continue without edit? [y/N] ",
+          "$EDITOR is not set. Set EDITOR to use --edit. Continue without edit?",
         );
         if (!continueWithoutEdit) {
-          console.log("Cancelled.");
+          cancel("Cancelled.");
           return 0;
         }
       }
@@ -335,12 +252,11 @@ export async function runCommitCommand(
       const editResult = await editMessageInEditor(message, editorCommand);
       if (editResult.status === "edited" && editResult.message) {
         message = editResult.message;
-        rationale = undefined;
       } else if (editResult.status === "empty") {
-        console.error("Edited message is empty. Keeping previous message.");
+        log.info("Edited message is empty. Keeping previous message.");
       } else {
         const exitCode = editResult.exitCode ?? "unknown";
-        console.warn(
+        log.info(
           `Editor exited with code ${exitCode}. Keeping previous message.`,
         );
       }
@@ -348,7 +264,8 @@ export async function runCommitCommand(
   }
 
   if (allowRegen) {
-    const previousMessage = message;
+    const regenSpinner = spinner();
+    regenSpinner.start("Regenerating commit message");
     try {
       const regenerated = await generateCommitProposal(
         {
@@ -361,69 +278,46 @@ export async function runCommitCommand(
       if (mappedScope) {
         regenerated.scope = mappedScope;
       }
-      const regeneratedMessage = formatCommitMessage(regenerated);
-      if (regeneratedMessage === previousMessage) {
-        console.log("Regenerated message is identical to previous proposal.");
-      }
-      message = regeneratedMessage;
-      rationale = regenerated.rationale;
+      message = formatCommitMessage(regenerated);
       proposal = regenerated;
+      regenSpinner.stop("Commit message regenerated");
     } catch (error) {
+      regenSpinner.stop("Regeneration failed");
       const messageText =
         error instanceof MessageEngineError ? error.message : "Regen failed.";
-      console.warn(`${messageText} Using previous message.`);
+      log.info(`${messageText} Using previous message.`);
     }
   }
 
-  const warnings: string[] = [];
-  const truncationWarning = formatTruncationWarning(diff);
-  if (truncationWarning) {
-    warnings.push(truncationWarning);
-  }
-  if (binaryOnlyChanges) {
-    warnings.push(
-      "Warning: Only binary files changed; consider --edit to refine the message.",
-    );
-  }
-
-  printPreview(message, rationale, warnings);
-
-  const subjectLine = getSubjectLine(message);
-  if (subjectLine.length > subjectMaxLength) {
-    console.warn(
-      `Subject exceeds ${subjectMaxLength} characters; consider shortening.`,
-    );
-  }
-
-  if (!isConventionalCommit(message, allowedTypes)) {
-    console.warn(
-      "Message does not match Conventional Commit format; consider editing.",
-    );
-  }
+  printPreview(message);
 
   if (!options.yes) {
-    const confirmed = await promptConfirm("Commit with this message? [y/N] ");
+    const confirmed = await promptConfirm("Commit with this message?");
     if (!confirmed) {
-      console.log("Cancelled.");
+      cancel("Cancelled.");
       return 0;
     }
   }
 
   if (options.dryRun) {
-    console.log("Dry run message:");
-    console.log(message);
+    note(message, "Dry run message", { format: (line) => line });
+    outro("Dry run complete.");
     return 0;
   }
 
+  const commitSpinner = spinner();
+  commitSpinner.start("Committing changes");
   try {
     const result = commitWithMessage(cwd, message);
-    console.log(`Commit: ${result.hash} ${result.subject}`);
+    commitSpinner.stop(`Commit ${result.hash} ${result.subject}`);
+    outro("Commit complete.");
     return 0;
   } catch (error) {
+    commitSpinner.stop("Commit failed");
     const gitError = error instanceof GitContextError ? error : undefined;
-    console.error(gitError?.message ?? "Commit failed.");
+    log.error(gitError?.message ?? "Commit failed.", stderr);
     if (gitError?.details) {
-      console.error(gitError.details);
+      log.error(gitError.details, stderr);
     }
     return 1;
   }

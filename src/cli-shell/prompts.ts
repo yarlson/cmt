@@ -1,33 +1,20 @@
-import readline from "node:readline";
-import { Writable } from "node:stream";
-
-class MutedOutput extends Writable {
-  _write(
-    _chunk: Buffer,
-    _encoding: BufferEncoding,
-    callback: () => void,
-  ): void {
-    callback();
-  }
-}
+import { confirm, isCancel, password, text } from "@clack/prompts";
 
 export async function promptConfirm(question: string): Promise<boolean> {
   if (!process.stdin.isTTY) {
     return false;
   }
 
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
+  const response = await confirm({
+    message: question,
+    initialValue: false,
   });
 
-  return await new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      const normalized = answer.trim().toLowerCase();
-      resolve(normalized === "y" || normalized === "yes");
-    });
-  });
+  if (isCancel(response)) {
+    return false;
+  }
+
+  return response;
 }
 
 export async function promptSecret(question: string): Promise<string | null> {
@@ -35,21 +22,13 @@ export async function promptSecret(question: string): Promise<string | null> {
     return null;
   }
 
-  process.stdout.write(question);
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: new MutedOutput(),
-    terminal: true,
-  });
+  const response = await password({ message: question });
+  if (isCancel(response)) {
+    return null;
+  }
 
-  return await new Promise((resolve) => {
-    rl.question("", (answer) => {
-      rl.close();
-      process.stdout.write("\n");
-      const trimmed = answer.trim();
-      resolve(trimmed.length > 0 ? trimmed : null);
-    });
-  });
+  const trimmed = response.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export async function promptInput(
@@ -60,20 +39,22 @@ export async function promptInput(
     return null;
   }
 
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
+  const response = await text({
+    message: question,
+    validate: allowEmpty
+      ? undefined
+      : (value: string | undefined) =>
+          value && value.trim().length > 0 ? undefined : "Value is required.",
   });
 
-  return await new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      const trimmed = answer.trim();
-      if (!allowEmpty && trimmed.length === 0) {
-        resolve(null);
-      } else {
-        resolve(trimmed);
-      }
-    });
-  });
+  if (isCancel(response)) {
+    return null;
+  }
+
+  const trimmed = response.trim();
+  if (!allowEmpty && trimmed.length === 0) {
+    return null;
+  }
+
+  return trimmed;
 }
