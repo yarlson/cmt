@@ -8,6 +8,7 @@ import {
   ProviderAuthError,
 } from "../provider-auth/index.js";
 import { promptConfirm, promptInput } from "./prompts.js";
+import { formatIntroTitle } from "./ui.js";
 
 export interface AuthCommandOptions {
   provider?: string;
@@ -76,7 +77,7 @@ export async function runAuthCommand(
     return 1;
   }
 
-  intro("Auth");
+  intro(formatIntroTitle("Auth"));
 
   let replaceExisting = false;
   if (hasStoredAuth(selectedProvider.id, env)) {

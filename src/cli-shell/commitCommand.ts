@@ -30,6 +30,7 @@ import {
 } from "../provider-auth/index.js";
 import { editMessageInEditor } from "./editor.js";
 import { promptConfirm, promptSecret } from "./prompts.js";
+import { formatIntroTitle } from "./ui.js";
 
 export interface CommitCommandOptions {
   dryRun: boolean;
@@ -98,7 +99,7 @@ export async function runCommitCommand(
     return 1;
   }
 
-  intro("Commit");
+  intro(formatIntroTitle(" Cmt "));
 
   if (includeUnstaged) {
     const unstagedTrackedFiles = getUnstagedTrackedFiles(cwd);
