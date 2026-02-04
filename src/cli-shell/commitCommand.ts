@@ -9,6 +9,9 @@ import {
   ensureRepoState,
   GitContextError,
   getStagedFiles,
+  getUnstagedTrackedFiles,
+  getUntrackedFiles,
+  stageTrackedChanges,
 } from "../git-context/index.js";
 import {
   type CommitProposal,
@@ -32,6 +35,7 @@ export interface CommitCommandOptions {
   dryRun: boolean;
   edit: boolean;
   regen: boolean;
+  includeUnstaged: boolean;
   provider?: string;
   model?: string;
   types?: string[];
@@ -71,6 +75,29 @@ function isConventionalCommit(
   return allowedTypes.includes(match[1]);
 }
 
+const MAX_STAGING_PREVIEW_FILES = 20;
+
+function printFileList(
+  header: string,
+  files: string[],
+  maxEntries = MAX_STAGING_PREVIEW_FILES,
+): void {
+  console.log(header);
+  if (files.length === 0) {
+    console.log("  (none)");
+    return;
+  }
+
+  const entries = files.slice(0, maxEntries);
+  for (const file of entries) {
+    console.log(`  ${file}`);
+  }
+  const remaining = files.length - entries.length;
+  if (remaining > 0) {
+    console.log(`  ...and ${remaining} more`);
+  }
+}
+
 export async function runCommitCommand(
   options: CommitCommandOptions,
 ): Promise<number> {
@@ -79,6 +106,8 @@ export async function runCommitCommand(
   const telemetry = createTelemetry(env);
   const allowEdit = options.edit;
   const allowRegen = options.regen;
+  const includeUnstaged = options.includeUnstaged;
+  let stagingAttempted = false;
 
   if (allowEdit && !process.stdin.isTTY) {
     console.error(
@@ -106,9 +135,74 @@ export async function runCommitCommand(
     return 1;
   }
 
+  if (includeUnstaged) {
+    const unstagedTrackedFiles = getUnstagedTrackedFiles(cwd);
+    const untrackedFiles = getUntrackedFiles(cwd);
+
+    telemetry.emit("include_unstaged_requested", {
+      trackedCount: unstagedTrackedFiles.length,
+      untrackedCount: untrackedFiles.length,
+    });
+
+    if (unstagedTrackedFiles.length === 0) {
+      console.warn(
+        "No unstaged tracked changes found; continuing with staged changes.",
+      );
+    } else {
+      printFileList(
+        `Tracked files to stage (${unstagedTrackedFiles.length}):`,
+        unstagedTrackedFiles,
+      );
+    }
+
+    if (untrackedFiles.length > 0) {
+      printFileList(
+        `Untracked files not staged (${untrackedFiles.length}):`,
+        untrackedFiles,
+      );
+    }
+
+    if (unstagedTrackedFiles.length > 0) {
+      if (!options.yes) {
+        const confirmed = await promptConfirm(
+          "Stage these tracked changes? [y/N] ",
+        );
+        if (!confirmed) {
+          console.log("Cancelled.");
+          return 0;
+        }
+      }
+
+      telemetry.emit("staging_confirmed", {
+        fileCount: unstagedTrackedFiles.length,
+      });
+
+      try {
+        stagingAttempted = true;
+        stageTrackedChanges(cwd);
+        telemetry.emit("staging_completed", {
+          fileCount: unstagedTrackedFiles.length,
+        });
+      } catch (error) {
+        const gitError = error instanceof GitContextError ? error : undefined;
+        telemetry.emit("staging_failed", {
+          code: gitError?.code ?? "staging_failed",
+        });
+        console.error(gitError?.message ?? "Staging failed.");
+        if (gitError?.details) {
+          console.error(gitError.details);
+        }
+        return 1;
+      }
+    }
+  }
+
   const stagedFiles = getStagedFiles(cwd);
   if (stagedFiles.length === 0) {
-    console.log("No staged changes to commit.");
+    const message = stagingAttempted
+      ? "Staging produced no changes to commit."
+      : "No staged changes to commit.";
+    console.log(message);
     return 0;
   }
 

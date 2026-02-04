@@ -49,6 +49,43 @@ export function getStagedFiles(cwd: string): string[] {
     .filter((line) => line.length > 0);
 }
 
+export function getUnstagedTrackedFiles(cwd: string): string[] {
+  const result = runGitCommand(["diff", "--name-only"], { cwd });
+  if (result.exitCode !== 0) {
+    return [];
+  }
+
+  return result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+export function getUntrackedFiles(cwd: string): string[] {
+  const result = runGitCommand(["ls-files", "--others", "--exclude-standard"], {
+    cwd,
+  });
+  if (result.exitCode !== 0) {
+    return [];
+  }
+
+  return result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+export function stageTrackedChanges(cwd: string): void {
+  const result = runGitCommand(["add", "-u"], { cwd });
+  if (result.exitCode !== 0) {
+    throw new GitContextError(
+      "Failed to stage tracked changes.",
+      "staging_failed",
+      [result.stdout, result.stderr].join("\n").trim(),
+    );
+  }
+}
+
 function parseNumstat(output: string): {
   binaryFiles: string[];
   stats: DiffStats;

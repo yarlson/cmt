@@ -60,6 +60,41 @@ describe("commit flow", () => {
     expect(after).toBe(before);
   });
 
+  it("includes unstaged tracked changes when requested", async () => {
+    const repoDir = await createTempDir("cmt-repo-");
+    initGitRepo(repoDir);
+    await writeFile(repoDir, "README.md", "base\n");
+    runGit(repoDir, ["add", "README.md"]);
+    runGit(repoDir, ["commit", "-m", "chore: init"]);
+
+    await writeFile(repoDir, "README.md", "base\nchange\n");
+    await writeFile(repoDir, "notes.txt", "draft\n");
+
+    const env = defaultEnv(repoDir);
+
+    const result = runCli(
+      repoDir,
+      ["commit", "--include-unstaged", "--yes"],
+      env,
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Tracked files to stage");
+    expect(result.stdout).toContain("Untracked files not staged");
+
+    const log = runGit(repoDir, ["log", "-1", "--pretty=%s"]);
+    expect(log.stdout.trim()).toBe("feat(core): add greeting");
+
+    const status = runGit(repoDir, ["status", "--porcelain"]);
+    expect(status.stdout).toContain("?? notes.txt");
+    expect(status.stdout).not.toContain("README.md");
+
+    const events = await readTelemetryEvents(env.CMT_TELEMETRY_PATH ?? "");
+    const eventNames = events.map((event) => event.name);
+    expect(eventNames).toContain("include_unstaged_requested");
+    expect(eventNames).toContain("staging_completed");
+  });
+
   it("applies scope mapping from config", async () => {
     const repoDir = await createTempDir("cmt-repo-");
     initGitRepo(repoDir);

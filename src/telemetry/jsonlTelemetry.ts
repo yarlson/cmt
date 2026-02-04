@@ -5,6 +5,10 @@ import path from "node:path";
 export type TelemetryEventName =
   | "commit_flow_started"
   | "repo_validation_failed"
+  | "include_unstaged_requested"
+  | "staging_confirmed"
+  | "staging_completed"
+  | "staging_failed"
   | "diff_truncated"
   | "config_loaded"
   | "config_invalid"

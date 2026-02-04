@@ -3,7 +3,8 @@ export type GitContextErrorCode =
   | "merge_conflict"
   | "rebase_in_progress"
   | "no_staged_changes"
-  | "commit_failed";
+  | "commit_failed"
+  | "staging_failed";
 
 export class GitContextError extends Error {
   readonly code: GitContextErrorCode;

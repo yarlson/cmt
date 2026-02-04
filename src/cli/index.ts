@@ -5,7 +5,7 @@ import { runCommitCommand } from "../cli-shell/commitCommand.js";
 function printUsage(): void {
   console.log("Usage:");
   console.log(
-    "  tool commit [--dry-run] [--yes] [--edit] [--regen] [--provider <id>] [--model <id>] [--types <list>]",
+    "  tool commit [--dry-run] [--yes] [--edit] [--regen] [--include-unstaged] [--provider <id>] [--model <id>] [--types <list>]",
   );
   console.log("  tool auth --provider <id>");
 }
@@ -36,6 +36,7 @@ async function main(): Promise<void> {
     let yes = false;
     let edit = false;
     let regen = false;
+    let includeUnstaged = false;
     let provider: string | undefined;
     let model: string | undefined;
     let types: string[] | undefined;
@@ -56,6 +57,10 @@ async function main(): Promise<void> {
       }
       if (flag === "--regen") {
         regen = true;
+        continue;
+      }
+      if (flag === "--include-unstaged") {
+        includeUnstaged = true;
         continue;
       }
       if (flag.startsWith("--provider=")) {
@@ -135,6 +140,7 @@ async function main(): Promise<void> {
       provider,
       model,
       types,
+      includeUnstaged,
       yes,
     });
     return;
