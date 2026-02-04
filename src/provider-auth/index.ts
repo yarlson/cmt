@@ -59,5 +59,13 @@ export async function createProviderAuthContext(
 }
 
 export { ProviderAuthError } from "./errors.js";
+export {
+  hasStoredAuth,
+  listOAuthProviders,
+  loginWithOAuth,
+  type OAuthLoginOptions,
+  type OAuthLoginResult,
+  type OAuthProviderSummary,
+} from "./oauth.js";
 export { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./piAgentProvider.js";
 export type { CommitMessageProvider } from "./types.js";

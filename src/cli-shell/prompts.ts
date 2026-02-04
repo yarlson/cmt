@@ -51,3 +51,29 @@ export async function promptSecret(question: string): Promise<string | null> {
     });
   });
 }
+
+export async function promptInput(
+  question: string,
+  allowEmpty = false,
+): Promise<string | null> {
+  if (!process.stdin.isTTY) {
+    return null;
+  }
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return await new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      const trimmed = answer.trim();
+      if (!allowEmpty && trimmed.length === 0) {
+        resolve(null);
+      } else {
+        resolve(trimmed);
+      }
+    });
+  });
+}

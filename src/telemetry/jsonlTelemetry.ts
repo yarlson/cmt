@@ -19,7 +19,12 @@ export type TelemetryEventName =
   | "preview_shown"
   | "commit_confirmed"
   | "commit_succeeded"
-  | "commit_failed";
+  | "commit_failed"
+  | "oauth_started"
+  | "oauth_completed"
+  | "oauth_failed"
+  | "auth_token_stored"
+  | "auth_verification_failed";
 
 export interface TelemetryEvent {
   name: TelemetryEventName;
