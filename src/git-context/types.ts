@@ -9,6 +9,8 @@ export interface BoundedDiff {
   diff: string;
   diffTruncated: boolean;
   filesTruncated: boolean;
+  diffBytes: number;
+  maxDiffBytes: number;
   stats: DiffStats;
   totalFiles: number;
 }

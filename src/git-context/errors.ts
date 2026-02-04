@@ -3,6 +3,9 @@ export type GitContextErrorCode =
   | "merge_conflict"
   | "rebase_in_progress"
   | "no_staged_changes"
+  | "diff_summary_failed"
+  | "diff_failed"
+  | "diff_too_large"
   | "commit_failed"
   | "staging_failed";
 

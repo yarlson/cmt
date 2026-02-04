@@ -8,4 +8,9 @@ export {
   resolveScopeFromMappings,
   type ScopeMapping,
 } from "./commitConfig.js";
-export { type DiffLimits, getDiffLimits } from "./limits.js";
+export {
+  type DiffLimits,
+  type DiffLimitsResolution,
+  getDiffLimits,
+  resolveDiffLimits,
+} from "./limits.js";

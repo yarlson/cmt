@@ -9,6 +9,8 @@ export interface CommitDiff {
   diff: string;
   diffTruncated: boolean;
   filesTruncated: boolean;
+  diffBytes: number;
+  maxDiffBytes: number;
   stats: CommitDiffStats;
   totalFiles: number;
 }

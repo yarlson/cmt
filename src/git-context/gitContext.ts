@@ -5,6 +5,13 @@ import type { BoundedDiff, DiffStats } from "./types.js";
 
 const EMPTY_STATS: DiffStats = { addedLines: 0, removedLines: 0 };
 
+interface FileChangeStats {
+  addedLines: number;
+  removedLines: number;
+  isBinary: boolean;
+  changeSize: number;
+}
+
 export function ensureRepoState(cwd: string): void {
   const repoCheck = runGitCommand(["rev-parse", "--is-inside-work-tree"], {
     cwd,
@@ -86,13 +93,8 @@ export function stageTrackedChanges(cwd: string): void {
   }
 }
 
-function parseNumstat(output: string): {
-  binaryFiles: string[];
-  stats: DiffStats;
-} {
-  const binaryFiles: string[] = [];
-  let addedLines = 0;
-  let removedLines = 0;
+function parseNumstat(output: string): Map<string, FileChangeStats> {
+  const stats = new Map<string, FileChangeStats>();
 
   for (const line of output.split("\n")) {
     const trimmed = line.trim();
@@ -100,42 +102,83 @@ function parseNumstat(output: string): {
       continue;
     }
 
-    const [added, removed, filePath] = trimmed.split("\t");
+    const [added, removed, ...fileParts] = trimmed.split("\t");
+    const filePath = fileParts.join("\t");
     if (!filePath) {
       continue;
     }
 
     if (added === "-" || removed === "-") {
-      binaryFiles.push(filePath);
+      stats.set(filePath, {
+        addedLines: 0,
+        removedLines: 0,
+        isBinary: true,
+        changeSize: 0,
+      });
       continue;
     }
 
     const addedNumber = Number.parseInt(added, 10);
     const removedNumber = Number.parseInt(removed, 10);
+    const safeAdded = Number.isNaN(addedNumber) ? 0 : addedNumber;
+    const safeRemoved = Number.isNaN(removedNumber) ? 0 : removedNumber;
 
-    if (!Number.isNaN(addedNumber)) {
-      addedLines += addedNumber;
-    }
-    if (!Number.isNaN(removedNumber)) {
-      removedLines += removedNumber;
-    }
+    stats.set(filePath, {
+      addedLines: safeAdded,
+      removedLines: safeRemoved,
+      isBinary: false,
+      changeSize: safeAdded + safeRemoved,
+    });
   }
 
-  return {
-    binaryFiles,
-    stats: { addedLines, removedLines },
-  };
+  return stats;
+}
+
+function sumStatsForFiles(
+  files: string[],
+  fileStats: Map<string, FileChangeStats>,
+): DiffStats {
+  let addedLines = 0;
+  let removedLines = 0;
+
+  for (const file of files) {
+    const stats = fileStats.get(file);
+    if (!stats || stats.isBinary) {
+      continue;
+    }
+    addedLines += stats.addedLines;
+    removedLines += stats.removedLines;
+  }
+
+  return { addedLines, removedLines };
+}
+
+function sortFilesByChangeSize(
+  files: string[],
+  fileStats: Map<string, FileChangeStats>,
+): string[] {
+  return [...files].sort((left, right) => {
+    const leftStats = fileStats.get(left);
+    const rightStats = fileStats.get(right);
+    const leftSize = leftStats?.changeSize ?? 0;
+    const rightSize = rightStats?.changeSize ?? 0;
+    if (leftSize !== rightSize) {
+      return rightSize - leftSize;
+    }
+    return left.localeCompare(right);
+  });
 }
 
 function truncateDiff(
   diff: string,
   maxBytes: number,
 ): { text: string; truncated: boolean } {
-  if (Buffer.byteLength(diff, "utf8") <= maxBytes) {
+  const buffer = Buffer.from(diff, "utf8");
+  if (buffer.length <= maxBytes) {
     return { text: diff, truncated: false };
   }
 
-  const truncatedText = diff.slice(0, maxBytes);
+  const truncatedText = buffer.subarray(0, maxBytes).toString("utf8");
   return { text: truncatedText, truncated: true };
 }
 
@@ -151,27 +194,41 @@ export function collectBoundedDiff(
       diff: "",
       diffTruncated: false,
       filesTruncated: false,
+      diffBytes: 0,
+      maxDiffBytes: limits.maxDiffBytes,
       stats: EMPTY_STATS,
       totalFiles: 0,
     };
   }
 
+  const numstat = runGitCommand(["diff", "--cached", "--numstat"], {
+    cwd,
+  });
+  if (numstat.exitCode !== 0) {
+    throw new GitContextError(
+      "Failed to compute diff summary.",
+      "diff_summary_failed",
+      [numstat.stdout, numstat.stderr].join("\n").trim(),
+    );
+  }
+
+  const fileStats = parseNumstat(numstat.stdout);
+
   const filesTruncated = allFiles.length > limits.maxFileCount;
+  const sortedFiles = filesTruncated
+    ? sortFilesByChangeSize(allFiles, fileStats)
+    : allFiles;
   const includedFiles = filesTruncated
-    ? allFiles.slice(0, limits.maxFileCount)
+    ? sortedFiles.slice(0, limits.maxFileCount)
     : allFiles;
 
-  const numstat = runGitCommand(
-    ["diff", "--cached", "--numstat", "--", ...includedFiles],
-    {
-      cwd,
-    },
+  const binaryFiles = includedFiles.filter(
+    (file) => fileStats.get(file)?.isBinary,
   );
-
-  const { binaryFiles, stats } = parseNumstat(numstat.stdout);
   const nonBinaryFiles = includedFiles.filter(
-    (file) => !binaryFiles.includes(file),
+    (file) => !fileStats.get(file)?.isBinary,
   );
+  const stats = sumStatsForFiles(includedFiles, fileStats);
 
   let diffContent = "";
   if (nonBinaryFiles.length > 0) {
@@ -181,10 +238,24 @@ export function collectBoundedDiff(
         cwd,
       },
     );
+    if (diffResult.exitCode !== 0) {
+      throw new GitContextError(
+        "Failed to collect staged diff.",
+        "diff_failed",
+        [diffResult.stdout, diffResult.stderr].join("\n").trim(),
+      );
+    }
     diffContent = diffResult.stdout;
   }
 
+  const diffBytes = Buffer.byteLength(diffContent, "utf8");
   const { text, truncated } = truncateDiff(diffContent, limits.maxDiffBytes);
+  if (Buffer.byteLength(text, "utf8") > limits.maxDiffBytes) {
+    throw new GitContextError(
+      "Diff exceeds size limit even after truncation. Reduce changes or increase CMT_MAX_DIFF_BYTES.",
+      "diff_too_large",
+    );
+  }
 
   return {
     files: includedFiles,
@@ -192,6 +263,8 @@ export function collectBoundedDiff(
     diff: text,
     diffTruncated: truncated,
     filesTruncated,
+    diffBytes,
+    maxDiffBytes: limits.maxDiffBytes,
     stats,
     totalFiles: allFiles.length,
   };

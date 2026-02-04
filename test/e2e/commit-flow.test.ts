@@ -261,5 +261,28 @@ describe("commit flow", () => {
     const result = runCli(repoDir, ["commit", "--yes"], env);
     expect(result.exitCode).toBe(0);
     expect(`${result.stdout}${result.stderr}`).toContain("Diff truncated");
+
+    const events = await readTelemetryEvents(env.CMT_TELEMETRY_PATH ?? "");
+    const eventNames = events.map((event) => event.name);
+    expect(eventNames).toContain("diff_size_exceeded");
+    expect(eventNames).toContain("diff_truncated");
+    expect(eventNames).toContain("truncation_warning_shown");
+  });
+
+  it("warns when only binary files change", async () => {
+    const repoDir = await createTempDir("cmt-repo-");
+    initGitRepo(repoDir);
+
+    const binaryPath = path.join(repoDir, "asset.bin");
+    await fs.writeFile(binaryPath, Buffer.from([0, 1, 2, 3, 4, 255]));
+    runGit(repoDir, ["add", "asset.bin"]);
+
+    const env = defaultEnv(repoDir);
+    const result = runCli(repoDir, ["commit", "--yes"], env);
+
+    expect(result.exitCode).toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toContain(
+      "Only binary files changed",
+    );
   });
 });

@@ -47,5 +47,10 @@ export async function generateCommitProposal(
   }
 
   const json = extractJsonObject(output.trim());
-  return parseCommitProposalJson(json, input.allowedTypes);
+  const proposal = parseCommitProposalJson(json, input.allowedTypes);
+  proposal.truncation = {
+    diff: input.diff.diffTruncated,
+    files: input.diff.filesTruncated,
+  };
+  return proposal;
 }

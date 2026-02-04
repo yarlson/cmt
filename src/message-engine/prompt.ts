@@ -28,7 +28,13 @@ export function buildCommitPrompt(input: CommitPromptInput): string {
       : "Binary files: none";
   const truncationNote =
     diff.diffTruncated || diff.filesTruncated
-      ? "Note: diff/file list was truncated for safety."
+      ? `Truncation: diff=${diff.diffTruncated ? "yes" : "no"}, files=${
+          diff.filesTruncated ? "yes" : "no"
+        }.`
+      : "";
+  const binaryOnlyNote =
+    diff.diff.length === 0 && diff.binaryFiles.length > 0
+      ? "Note: Only binary files changed; keep subject minimal and suggest manual review."
       : "";
 
   return [
@@ -45,6 +51,7 @@ export function buildCommitPrompt(input: CommitPromptInput): string {
     `Files changed: ${diff.totalFiles}`,
     `Lines added: ${diff.stats.addedLines}, removed: ${diff.stats.removedLines}`,
     truncationNote,
+    binaryOnlyNote,
     "",
     "Staged diff (may be truncated):",
     diff.diff.length > 0 ? diff.diff : "(no text diff available)",

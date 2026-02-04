@@ -7,6 +7,10 @@ export interface CommitProposal {
   body?: string;
   footers?: string[];
   rationale?: string;
+  truncation?: {
+    diff: boolean;
+    files: boolean;
+  };
 }
 
 function normalizeString(value: unknown): string | undefined {

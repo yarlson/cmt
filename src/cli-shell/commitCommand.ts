@@ -1,6 +1,6 @@
 import {
-  getDiffLimits,
   resolveCommitConfig,
+  resolveDiffLimits,
   resolveScopeFromMappings,
 } from "../config-policy/index.js";
 import {
@@ -44,7 +44,14 @@ export interface CommitCommandOptions {
   cwd?: string;
 }
 
-function printPreview(message: string, rationale?: string): void {
+function printPreview(
+  message: string,
+  rationale?: string,
+  warnings: string[] = [],
+): void {
+  for (const warning of warnings) {
+    console.log(warning);
+  }
   console.log("Preview:");
   console.log(message);
   if (rationale) {
@@ -96,6 +103,37 @@ function printFileList(
   if (remaining > 0) {
     console.log(`  ...and ${remaining} more`);
   }
+}
+
+function formatTruncationWarning(diff: {
+  diffTruncated: boolean;
+  filesTruncated: boolean;
+  files: string[];
+  totalFiles: number;
+  diffBytes: number;
+  maxDiffBytes: number;
+}): string | undefined {
+  if (!diff.diffTruncated && !diff.filesTruncated) {
+    return undefined;
+  }
+
+  const details: string[] = [];
+  if (diff.diffTruncated) {
+    details.push(
+      `diff truncated to ${diff.maxDiffBytes} bytes from ${diff.diffBytes}`,
+    );
+  }
+  if (diff.filesTruncated) {
+    details.push(
+      `file list limited to ${diff.files.length} of ${diff.totalFiles}`,
+    );
+  }
+
+  const prefix = diff.diffTruncated
+    ? "Diff truncated for safety"
+    : "File list truncated for safety";
+  const detailText = details.length > 0 ? ` (${details.join("; ")}).` : ".";
+  return `Warning: ${prefix}${detailText} Consider --edit to review the message.`;
 }
 
 export async function runCommitCommand(
@@ -206,7 +244,11 @@ export async function runCommitCommand(
     return 0;
   }
 
-  const limits = getDiffLimits(env);
+  const diffLimitsResolution = resolveDiffLimits(env);
+  const limits = diffLimitsResolution.limits;
+  for (const warning of diffLimitsResolution.warnings) {
+    console.warn(warning);
+  }
   const configResolution = await resolveCommitConfig({
     cwd,
     env,
@@ -263,15 +305,41 @@ export async function runCommitCommand(
   const providerId = configResolution.effective.providerId;
   const modelId = configResolution.effective.modelId;
 
-  const diff = collectBoundedDiff(cwd, limits);
+  let diff: ReturnType<typeof collectBoundedDiff>;
+  try {
+    diff = collectBoundedDiff(cwd, limits);
+  } catch (error) {
+    const gitError = error instanceof GitContextError ? error : undefined;
+    telemetry.emit("commit_failed", {
+      code: gitError?.code ?? "diff_failed",
+    });
+    console.error(gitError?.message ?? "Failed to collect diff.");
+    if (gitError?.details) {
+      console.error(gitError.details);
+    }
+    return 1;
+  }
+
   if (diff.diffTruncated || diff.filesTruncated) {
+    telemetry.emit("diff_size_exceeded", {
+      diffBytes: diff.diffBytes,
+      maxDiffBytes: diff.maxDiffBytes,
+      totalFiles: diff.totalFiles,
+      maxFileCount: limits.maxFileCount,
+      diffTruncated: diff.diffTruncated,
+      filesTruncated: diff.filesTruncated,
+    });
     telemetry.emit("diff_truncated", {
       diffTruncated: diff.diffTruncated,
       filesTruncated: diff.filesTruncated,
       totalFiles: diff.totalFiles,
     });
-    console.warn("Diff truncated for safety.");
   }
+
+  const binaryOnlyChanges =
+    diff.diff.length === 0 &&
+    diff.binaryFiles.length > 0 &&
+    diff.files.length === diff.binaryFiles.length;
 
   const mappedScope = resolveScopeFromMappings(diff.files, scopeMappings);
 
@@ -400,8 +468,25 @@ export async function runCommitCommand(
     }
   }
 
-  printPreview(message, rationale);
+  const warnings: string[] = [];
+  const truncationWarning = formatTruncationWarning(diff);
+  if (truncationWarning) {
+    warnings.push(truncationWarning);
+  }
+  if (binaryOnlyChanges) {
+    warnings.push(
+      "Warning: Only binary files changed; consider --edit to refine the message.",
+    );
+  }
+
+  printPreview(message, rationale, warnings);
   telemetry.emit("preview_shown");
+  if (truncationWarning) {
+    telemetry.emit("truncation_warning_shown", {
+      diffTruncated: diff.diffTruncated,
+      filesTruncated: diff.filesTruncated,
+    });
+  }
 
   const subjectLine = getSubjectLine(message);
   if (subjectLine.length > subjectMaxLength) {
