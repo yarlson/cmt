@@ -95,21 +95,19 @@
 
 ### 7) Rollout & rollback
 
-- **Feature flag:** `feature.ai_commit_config` (default off)
-- **Gating:** internal -> beta -> GA
+- **Rollout:** internal -> beta -> GA
 - **Ramp plan:** enable for internal, then 30% -> 70% -> 100%; stop on config-related failures
-- **Rollback plan:** disable flag; tool ignores config and reverts to defaults
+- **Rollback plan:** revert release; tool uses defaults only
 
 ### 8) Acceptance (must be runnable)
 
 **Acceptance Steps (staging-ready checklist)**
 
-1. Setup: create config file with provider/model/types; enable flag.
+1. Setup: create config file with provider/model/types.
 2. Happy path verification: run `tool commit`, confirm preview uses configured type set and scope mapping.
 3. Permission verification: set invalid provider -> error; set unreadable config -> warning and defaults.
 4. Failure-mode verification: invalid schema -> warning; conflicting env/flag -> precedence applied; unknown model -> fallback.
 5. Telemetry verification: `config_loaded` event emitted; `config_invalid` when applicable.
-6. Rollback verification: disable flag; config ignored and defaults used.
 
 **Acceptance Criteria (summary)**
 

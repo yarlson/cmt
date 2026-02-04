@@ -89,21 +89,19 @@
 
 ### 7) Rollout & rollback
 
-- **Feature flag:** `feature.ai_commit_large_diff` (default off)
-- **Gating:** internal -> beta -> GA
+- **Rollout:** internal -> beta -> GA
 - **Ramp plan:** 10% -> 50% -> 100%; stop on increased failure rate
-- **Rollback plan:** disable flag; revert to previous limits without truncation banner
+- **Rollback plan:** revert release; revert to previous limits without truncation banner
 
 ### 8) Acceptance (must be runnable)
 
 **Acceptance Steps (staging-ready checklist)**
 
-1. Setup: create large staged diff beyond limit; enable flag.
+1. Setup: create large staged diff beyond limit.
 2. Happy path verification: run `tool commit`, see truncation warning, confirm, commit succeeds.
 3. Permission verification: run in non-repo -> error; run in conflict -> refusal.
 4. Failure-mode verification: diff exceeds limit after truncation -> refusal; binary-only changes -> minimal message; invalid limits -> defaults used.
 5. Telemetry verification: `diff_truncated` and `truncation_warning_shown` emitted.
-6. Rollback verification: disable flag; warning banner and truncation metadata not shown.
 
 **Acceptance Criteria (summary)**
 
@@ -111,7 +109,6 @@
 - No diff content is logged or leaked.
 - Excessive diffs refuse with actionable guidance.
 - Truncation metadata appears in proposal.
-- Flag off removes truncation warning behavior.
 
 ### 9) Tech debt ledger (only if needed)
 

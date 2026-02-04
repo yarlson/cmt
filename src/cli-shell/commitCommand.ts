@@ -1,11 +1,7 @@
 import {
   getDiffLimits,
-  isAiCommitBasicEnabled,
-  isAiCommitConfigEnabled,
-  isAiCommitEditEnabled,
   resolveCommitConfig,
   resolveScopeFromMappings,
-  type ScopeMapping,
 } from "../config-policy/index.js";
 import {
   collectBoundedDiff,
@@ -81,15 +77,8 @@ export async function runCommitCommand(
   const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
   const telemetry = createTelemetry(env);
-  const configEnabled = isAiCommitConfigEnabled(env);
-  const editEnabled = isAiCommitEditEnabled(env);
-  const allowEdit = editEnabled && options.edit;
-  const allowRegen = editEnabled && options.regen;
-
-  if (!isAiCommitBasicEnabled(env)) {
-    console.log("feature disabled");
-    return 0;
-  }
+  const allowEdit = options.edit;
+  const allowRegen = options.regen;
 
   if (allowEdit && !process.stdin.isTTY) {
     console.error(
@@ -124,82 +113,61 @@ export async function runCommitCommand(
   }
 
   const limits = getDiffLimits(env);
-  if (!configEnabled) {
-    const ignoredFlags = [
-      options.provider ? "--provider" : null,
-      options.model ? "--model" : null,
-      options.types && options.types.length > 0 ? "--types" : null,
-    ].filter((flag): flag is string => Boolean(flag));
-    if (ignoredFlags.length > 0) {
-      console.warn(
-        `Config feature flag disabled; ignoring ${ignoredFlags.join(", ")}.`,
-      );
-    }
+  const configResolution = await resolveCommitConfig({
+    cwd,
+    env,
+    flags: {
+      providerId: options.provider,
+      modelId: options.model,
+      types: options.types,
+    },
+    defaults: {
+      providerId: DEFAULT_PROVIDER,
+      modelId: DEFAULT_MODEL,
+      allowedTypes: DEFAULT_COMMIT_TYPES,
+      subjectMaxLength: limits.subjectMaxLength,
+    },
+  });
+
+  if (configResolution.configFound) {
+    telemetry.emit("config_loaded", { path: configResolution.configPath });
   }
 
-  let allowedTypes = DEFAULT_COMMIT_TYPES;
-  let subjectMaxLength = limits.subjectMaxLength;
-  let scopeMappings: ScopeMapping[] = [];
-  let providerId = DEFAULT_PROVIDER;
-  let modelId = DEFAULT_MODEL;
-
-  if (configEnabled) {
-    const configResolution = await resolveCommitConfig({
-      cwd,
-      env,
-      flags: {
-        providerId: options.provider,
-        modelId: options.model,
-        types: options.types,
-      },
-      defaults: {
-        providerId: DEFAULT_PROVIDER,
-        modelId: DEFAULT_MODEL,
-        allowedTypes: DEFAULT_COMMIT_TYPES,
-        subjectMaxLength: limits.subjectMaxLength,
-      },
-    });
-
-    if (configResolution.configFound) {
-      telemetry.emit("config_loaded", { path: configResolution.configPath });
-    }
-
-    if (
-      configResolution.configInvalid ||
-      configResolution.invalidSections.length > 0
-    ) {
-      telemetry.emit("config_invalid", {
-        path: configResolution.configPath,
-        sections: configResolution.invalidSections,
-      });
-    }
-
-    if (configResolution.fallbackUsed) {
-      telemetry.emit("config_fallback_used", {
-        path: configResolution.configPath,
-        reason: configResolution.configFound ? "invalid" : "missing",
-      });
-    }
-
-    telemetry.emit("effective_config_resolved", {
+  if (
+    configResolution.configInvalid ||
+    configResolution.invalidSections.length > 0
+  ) {
+    telemetry.emit("config_invalid", {
       path: configResolution.configPath,
-      providerSource: configResolution.sources.providerId,
-      modelSource: configResolution.sources.modelId,
-      typesSource: configResolution.sources.allowedTypes,
-      subjectSource: configResolution.sources.subjectMaxLength,
-      scopeSource: configResolution.sources.scopeMappings,
+      sections: configResolution.invalidSections,
     });
-
-    for (const warning of configResolution.warnings) {
-      console.warn(warning);
-    }
-
-    allowedTypes = configResolution.effective.allowedTypes;
-    subjectMaxLength = configResolution.effective.subjectMaxLength;
-    scopeMappings = configResolution.effective.scopeMappings;
-    providerId = configResolution.effective.providerId;
-    modelId = configResolution.effective.modelId;
   }
+
+  if (configResolution.fallbackUsed) {
+    telemetry.emit("config_fallback_used", {
+      path: configResolution.configPath,
+      reason: configResolution.configFound ? "invalid" : "missing",
+    });
+  }
+
+  telemetry.emit("effective_config_resolved", {
+    path: configResolution.configPath,
+    providerSource: configResolution.sources.providerId,
+    modelSource: configResolution.sources.modelId,
+    typesSource: configResolution.sources.allowedTypes,
+    subjectSource: configResolution.sources.subjectMaxLength,
+    scopeSource: configResolution.sources.scopeMappings,
+  });
+
+  for (const warning of configResolution.warnings) {
+    console.warn(warning);
+  }
+
+  const allowedTypes = configResolution.effective.allowedTypes;
+  const subjectMaxLength = configResolution.effective.subjectMaxLength;
+  const scopeMappings = configResolution.effective.scopeMappings;
+  const providerId = configResolution.effective.providerId;
+  const modelId = configResolution.effective.modelId;
 
   const diff = collectBoundedDiff(cwd, limits);
   if (diff.diffTruncated || diff.filesTruncated) {

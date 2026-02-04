@@ -1,5 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { isAiCommitOAuthEnabled } from "../config-policy/index.js";
 import {
   hasStoredAuth,
   listOAuthProviders,
@@ -50,11 +49,6 @@ export async function runAuthCommand(
 ): Promise<number> {
   const env = options.env ?? process.env;
   const telemetry = createTelemetry(env);
-
-  if (!isAiCommitOAuthEnabled(env)) {
-    console.error("OAuth auth is disabled.");
-    return 1;
-  }
 
   const providers = listOAuthProviders(env);
   const providerList = formatProviderList(providers);

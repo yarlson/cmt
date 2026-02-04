@@ -29,7 +29,7 @@
 - OAuth flow
 - Include-unstaged commit
 - **Constraints to keep it thin:**
-- Assume staged-commit flow exists behind feature flag
+- Assume staged-commit flow exists
 - Regen limited to once per execution
 - `$EDITOR` only; no fallback editor download
 - Warnings only for length/format, no hard blocking
@@ -97,21 +97,19 @@
 
 ### 7) Rollout & rollback
 
-- **Feature flag:** `feature.ai_commit_edit` (default off)
-- **Gating:** internal -> beta -> GA
+- **Rollout:** internal -> beta -> GA
 - **Ramp plan:** enable for internal, then 25% -> 75% -> 100%; stop on editor failures or regen errors
-- **Rollback plan:** disable flag; CLI hides edit/regen options and proceeds with preview-only
+- **Rollback plan:** revert release; CLI returns to preview-only flow
 
 ### 8) Acceptance (must be runnable)
 
 **Acceptance Steps (staging-ready checklist)**
 
-1. Setup: staged change in test repo, base feature enabled, set `$EDITOR`.
+1. Setup: staged change in test repo, set `$EDITOR`.
 2. Happy path verification: run `tool commit --edit`, edit message, confirm commit, verify `git log -1` shows edited text.
 3. Permission verification: run `--edit` without `$EDITOR` -> guidance; run in non-interactive shell -> rejected.
 4. Failure-mode verification: empty edited message -> error; regen timeout -> uses prior message; editor exit non-zero -> returns to preview.
 5. Telemetry verification: events `edit_requested` and `edit_completed` emitted.
-6. Rollback verification: disable flag -> edit/regen options hidden; preview-only works.
 
 **Acceptance Criteria (summary)**
 
@@ -121,7 +119,6 @@
 - Non-interactive environments block edit with guidance.
 - Conventional format violations warn but do not block.
 - Telemetry records edit/regen attempts.
-- Flag off hides edit/regen and leaves base flow intact.
 
 ### 9) Tech debt ledger (only if needed)
 

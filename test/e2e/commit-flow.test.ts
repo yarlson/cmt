@@ -12,7 +12,6 @@ import {
 
 const defaultEnv = (baseDir: string): NodeJS.ProcessEnv => ({
   ...process.env,
-  FEATURE_AI_COMMIT_BASIC: "1",
   PI_API_KEY: "test-key",
   CMT_PROVIDER_MODE: "mock",
   CMT_AUTH_PATH: path.join(baseDir, "auth.json"),
@@ -81,7 +80,6 @@ describe("commit flow", () => {
     );
 
     const env = defaultEnv(repoDir);
-    env.FEATURE_AI_COMMIT_CONFIG = "1";
     env.CMT_MOCK_PROPOSAL_JSON = JSON.stringify({
       type: "docs",
       scope: "core",
@@ -107,7 +105,6 @@ describe("commit flow", () => {
     runGit(repoDir, ["add", "README.md"]);
 
     const env = defaultEnv(repoDir);
-    env.FEATURE_AI_COMMIT_EDIT = "1";
 
     const result = runCli(repoDir, ["commit", "--regen", "--yes"], env);
     expect(result.exitCode).toBe(0);
@@ -125,26 +122,11 @@ describe("commit flow", () => {
     runGit(repoDir, ["add", "README.md"]);
 
     const env = defaultEnv(repoDir);
-    env.FEATURE_AI_COMMIT_EDIT = "1";
     env.EDITOR = "true";
 
     const result = runCli(repoDir, ["commit", "--edit", "--yes"], env);
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("Non-interactive shell");
-  });
-
-  it("exits when feature flag is disabled", async () => {
-    const repoDir = await createTempDir("cmt-repo-");
-    initGitRepo(repoDir);
-    await writeFile(repoDir, "README.md", "hello\n");
-    runGit(repoDir, ["add", "README.md"]);
-
-    const env = defaultEnv(repoDir);
-    delete env.FEATURE_AI_COMMIT_BASIC;
-
-    const result = runCli(repoDir, ["commit", "--yes"], env);
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("feature disabled");
   });
 
   it("refuses outside a git repo", async () => {

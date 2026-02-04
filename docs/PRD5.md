@@ -94,21 +94,19 @@
 
 ### 7) Rollout & rollback
 
-- **Feature flag:** `feature.ai_commit_include_unstaged` (default off)
-- **Gating:** internal -> beta -> GA
+- **Rollout:** internal -> beta -> GA
 - **Ramp plan:** 10% -> 50% -> 100%; stop on staging failure spikes
-- **Rollback plan:** disable flag; `--include-unstaged` becomes unsupported and exits safely
+- **Rollback plan:** revert release; `--include-unstaged` becomes unsupported and exits safely
 
 ### 8) Acceptance (must be runnable)
 
 **Acceptance Steps (staging-ready checklist)**
 
-1. Setup: test repo with unstaged tracked change; enable flag.
+1. Setup: test repo with unstaged tracked change.
 2. Happy path verification: run `tool commit --include-unstaged`, confirm staging, preview, commit succeeds.
 3. Permission verification: run during merge conflict -> refusal; run with no repo -> error.
 4. Failure-mode verification: staging fails -> error; user cancels -> no changes; untracked files present -> excluded with note.
 5. Telemetry verification: `include_unstaged_requested` and `staging_completed` emitted.
-6. Rollback verification: disable flag; command exits with clear message.
 
 **Acceptance Criteria (summary)**
 

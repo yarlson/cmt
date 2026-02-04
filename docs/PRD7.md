@@ -88,21 +88,19 @@
 
 ### 7) Rollout & rollback
 
-- **Feature flag:** `feature.ai_commit_telemetry` (default off)
-- **Gating:** internal -> beta -> GA
+- **Rollout:** internal -> beta -> GA
 - **Ramp plan:** enable internal, then 50% -> 100%; stop on write failure spikes
-- **Rollback plan:** disable flag; telemetry is not emitted and no files are touched
+- **Rollback plan:** revert release; telemetry is not emitted and no files are touched
 
 ### 8) Acceptance (must be runnable)
 
 **Acceptance Steps (staging-ready checklist)**
 
-1. Setup: enable flag; set telemetry output path; stage a change.
+1. Setup: set telemetry output path; stage a change.
 2. Happy path verification: run `tool commit --telemetry`, commit succeeds, local telemetry file updated.
 3. Permission verification: run without `--telemetry` -> no file created; run with invalid path -> warning only.
 4. Failure-mode verification: simulate disk full -> warning; simulate file lock -> warning; schema mismatch -> drop event.
 5. Telemetry verification: confirm `commit_flow_started` and `commit_succeeded` events exist.
-6. Rollback verification: disable flag -> telemetry not emitted.
 
 **Acceptance Criteria (summary)**
 
@@ -110,7 +108,6 @@
 - No diff content or secrets are logged.
 - Event writes never block commits.
 - Local telemetry sink records core events when enabled.
-- Flag off removes all telemetry behavior.
 
 ### 9) Tech debt ledger (only if needed)
 

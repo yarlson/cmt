@@ -117,21 +117,19 @@
 
 ### 7) Rollout & rollback
 
-- **Feature flag:** `feature.ai_commit_basic` (default off)
-- **Gating:** internal -> design partners -> beta -> GA
+- **Rollout:** internal -> design partners -> beta -> GA
 - **Ramp plan:** 0% -> 10% -> 50% -> 100%; stop on error-rate spike or provider failure
-- **Rollback plan:** disable flag; tool exits with "feature disabled" message; no data mutation beyond git commit, so rollback is safe
+- **Rollback plan:** revert release; no data mutation beyond git commit, so rollback is safe
 
 ### 8) Acceptance (must be runnable)
 
 **Acceptance Steps (staging-ready checklist)**
 
-1. Setup: create a test repo, stage a small change, set API key, enable `feature.ai_commit_basic`.
+1. Setup: create a test repo, stage a small change, set API key.
 2. Happy path verification: run `tool commit`, confirm preview, commit succeeds, hash is printed.
 3. Permission verification: run outside git repo -> error; run with merge conflict -> refusal.
 4. Failure-mode verification: invalid API key -> error; provider timeout -> error; pre-commit hook failure -> error surfaced.
 5. Telemetry verification: confirm event stream/logs include `commit_flow_started` and `commit_succeeded`.
-6. Rollback verification: disable flag and rerun; tool exits without committing.
 
 **Acceptance Criteria (summary)**
 
@@ -144,7 +142,6 @@
 - Commit runs with hooks enabled and prints hash on success.
 - Diff truncation warns but still proposes a message.
 - Provider/auth failures never produce a commit.
-- Flag off prevents flow from running.
 
 ### 9) Tech debt ledger (only if needed)
 

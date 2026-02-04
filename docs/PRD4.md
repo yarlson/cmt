@@ -90,21 +90,19 @@
 
 ### 7) Rollout & rollback
 
-- **Feature flag:** `feature.ai_commit_oauth` (default off)
-- **Gating:** internal -> beta -> GA
+- **Rollout:** internal -> beta -> GA
 - **Ramp plan:** enable internal, then 20% -> 60% -> 100%; stop on auth failure spikes
-- **Rollback plan:** disable flag; OAuth command unavailable; API key flow remains
+- **Rollback plan:** revert release; OAuth command unavailable; API key flow remains
 
 ### 8) Acceptance (must be runnable)
 
 **Acceptance Steps (staging-ready checklist)**
 
-1. Setup: enable flag, ensure no existing auth tokens.
+1. Setup: ensure no existing auth tokens.
 2. Happy path verification: run `tool auth --provider X`, complete OAuth, verify token stored; run `tool commit` without re-auth.
 3. Permission verification: run with invalid provider -> error; run in non-interactive shell -> guidance.
 4. Failure-mode verification: cancel OAuth -> exit; verification failure -> no token stored; storage error -> error.
 5. Telemetry verification: `oauth_started` and `auth_token_stored` emitted.
-6. Rollback verification: disable flag -> OAuth command unavailable; API key auth still works.
 
 **Acceptance Criteria (summary)**
 
@@ -112,7 +110,6 @@
 - Stored token is reused without prompting.
 - Failure to verify auth prevents token storage.
 - Token data never appears in logs.
-- Feature flag disables OAuth path without impacting API key flow.
 
 ### 9) Tech debt ledger (only if needed)
 

@@ -7,7 +7,6 @@ describe("auth flow", () => {
     const dir = await createTempDir("cmt-auth-");
     const env: NodeJS.ProcessEnv = {
       ...process.env,
-      FEATURE_AI_COMMIT_OAUTH: "1",
       CMT_PROVIDER_MODE: "mock",
       CMT_AUTH_PATH: path.join(dir, "auth.json"),
       CMT_TELEMETRY_PATH: path.join(dir, "telemetry.jsonl"),

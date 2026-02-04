@@ -1,22 +1,13 @@
 #!/usr/bin/env node
 import { runAuthCommand } from "../cli-shell/authCommand.js";
 import { runCommitCommand } from "../cli-shell/commitCommand.js";
-import {
-  isAiCommitConfigEnabled,
-  isAiCommitEditEnabled,
-  isAiCommitOAuthEnabled,
-} from "../config-policy/index.js";
 
-function printUsage(env: NodeJS.ProcessEnv = process.env): void {
+function printUsage(): void {
   console.log("Usage:");
-  const editFlags = isAiCommitEditEnabled(env) ? " [--edit] [--regen]" : "";
-  const configFlags = isAiCommitConfigEnabled(env)
-    ? " [--provider <id>] [--model <id>] [--types <list>]"
-    : "";
-  console.log(`  tool commit [--dry-run] [--yes]${editFlags}${configFlags}`);
-  if (isAiCommitOAuthEnabled(env)) {
-    console.log("  tool auth --provider <id>");
-  }
+  console.log(
+    "  tool commit [--dry-run] [--yes] [--edit] [--regen] [--provider <id>] [--model <id>] [--types <list>]",
+  );
+  console.log("  tool auth --provider <id>");
 }
 
 function parseTypes(value: string | undefined): string[] | undefined {
@@ -34,7 +25,7 @@ function parseTypes(value: string | undefined): string[] | undefined {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
-    printUsage(process.env);
+    printUsage();
     return;
   }
 
@@ -71,7 +62,7 @@ async function main(): Promise<void> {
         provider = flag.slice("--provider=".length).trim();
         if (!provider) {
           console.error("--provider requires a value.");
-          printUsage(process.env);
+          printUsage();
           process.exitCode = 1;
           return;
         }
@@ -81,7 +72,7 @@ async function main(): Promise<void> {
         provider = flags[index + 1]?.trim();
         if (!provider) {
           console.error("--provider requires a value.");
-          printUsage(process.env);
+          printUsage();
           process.exitCode = 1;
           return;
         }
@@ -92,7 +83,7 @@ async function main(): Promise<void> {
         model = flag.slice("--model=".length).trim();
         if (!model) {
           console.error("--model requires a value.");
-          printUsage(process.env);
+          printUsage();
           process.exitCode = 1;
           return;
         }
@@ -102,7 +93,7 @@ async function main(): Promise<void> {
         model = flags[index + 1]?.trim();
         if (!model) {
           console.error("--model requires a value.");
-          printUsage(process.env);
+          printUsage();
           process.exitCode = 1;
           return;
         }
@@ -113,7 +104,7 @@ async function main(): Promise<void> {
         types = parseTypes(flag.slice("--types=".length));
         if (!types) {
           console.error("--types requires a comma-separated list.");
-          printUsage(process.env);
+          printUsage();
           process.exitCode = 1;
           return;
         }
@@ -123,7 +114,7 @@ async function main(): Promise<void> {
         types = parseTypes(flags[index + 1]);
         if (!types) {
           console.error("--types requires a comma-separated list.");
-          printUsage(process.env);
+          printUsage();
           process.exitCode = 1;
           return;
         }
@@ -132,7 +123,7 @@ async function main(): Promise<void> {
       }
 
       console.error(`Unknown flag: ${flag}`);
-      printUsage(process.env);
+      printUsage();
       process.exitCode = 1;
       return;
     }
@@ -159,7 +150,7 @@ async function main(): Promise<void> {
         provider = flag.slice("--provider=".length).trim();
         if (!provider) {
           console.error("--provider requires a value.");
-          printUsage(process.env);
+          printUsage();
           process.exitCode = 1;
           return;
         }
@@ -169,7 +160,7 @@ async function main(): Promise<void> {
         provider = flags[index + 1]?.trim();
         if (!provider) {
           console.error("--provider requires a value.");
-          printUsage(process.env);
+          printUsage();
           process.exitCode = 1;
           return;
         }
@@ -177,12 +168,12 @@ async function main(): Promise<void> {
         continue;
       }
       if (flag === "--help" || flag === "-h") {
-        printUsage(process.env);
+        printUsage();
         return;
       }
 
       console.error(`Unknown flag: ${flag}`);
-      printUsage(process.env);
+      printUsage();
       process.exitCode = 1;
       return;
     }
@@ -192,7 +183,7 @@ async function main(): Promise<void> {
   }
 
   console.error(`Unknown command: ${command}`);
-  printUsage(process.env);
+  printUsage();
   process.exitCode = 1;
   return;
 }
