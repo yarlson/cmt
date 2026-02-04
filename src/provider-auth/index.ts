@@ -11,11 +11,14 @@ export interface ProviderAuthContext {
   provider: CommitMessageProvider;
   providerId: string;
   modelId: string;
+  modelFallbackUsed: boolean;
 }
 
 export interface ProviderAuthOptions {
   promptForKey: () => Promise<string | null>;
   env?: NodeJS.ProcessEnv;
+  providerId?: string;
+  modelId?: string;
 }
 
 export async function createProviderAuthContext(
@@ -23,7 +26,8 @@ export async function createProviderAuthContext(
 ): Promise<ProviderAuthContext> {
   const env = options.env ?? process.env;
   const authStorage = createAuthStorage(env);
-  const providerId = DEFAULT_PROVIDER;
+  const providerId = options.providerId ?? DEFAULT_PROVIDER;
+  const requestedModelId = options.modelId;
 
   await resolveApiKey(authStorage, {
     providerId,
@@ -31,17 +35,29 @@ export async function createProviderAuthContext(
     env,
   });
 
-  const provider =
-    env.CMT_PROVIDER_MODE === "mock"
-      ? createMockProvider(env)
-      : createPiAgentProvider(authStorage);
+  if (env.CMT_PROVIDER_MODE === "mock" || providerId === "mock") {
+    return {
+      provider: createMockProvider(env),
+      providerId,
+      modelId: requestedModelId ?? DEFAULT_MODEL,
+      modelFallbackUsed: false,
+    };
+  }
+
+  const selection = createPiAgentProvider(
+    authStorage,
+    providerId,
+    requestedModelId,
+  );
 
   return {
-    provider,
+    provider: selection.provider,
     providerId,
-    modelId: DEFAULT_MODEL,
+    modelId: selection.modelId,
+    modelFallbackUsed: selection.modelFallbackUsed,
   };
 }
 
 export { ProviderAuthError } from "./errors.js";
+export { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./piAgentProvider.js";
 export type { CommitMessageProvider } from "./types.js";

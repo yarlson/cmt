@@ -1,7 +1,11 @@
 import {
   getDiffLimits,
   isAiCommitBasicEnabled,
+  isAiCommitConfigEnabled,
   isAiCommitEditEnabled,
+  resolveCommitConfig,
+  resolveScopeFromMappings,
+  type ScopeMapping,
 } from "../config-policy/index.js";
 import {
   collectBoundedDiff,
@@ -19,6 +23,8 @@ import {
 } from "../message-engine/index.js";
 import {
   createProviderAuthContext,
+  DEFAULT_MODEL,
+  DEFAULT_PROVIDER,
   type ProviderAuthContext,
   ProviderAuthError,
 } from "../provider-auth/index.js";
@@ -30,6 +36,9 @@ export interface CommitCommandOptions {
   dryRun: boolean;
   edit: boolean;
   regen: boolean;
+  provider?: string;
+  model?: string;
+  types?: string[];
   yes: boolean;
   env?: NodeJS.ProcessEnv;
   cwd?: string;
@@ -72,6 +81,7 @@ export async function runCommitCommand(
   const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
   const telemetry = createTelemetry(env);
+  const configEnabled = isAiCommitConfigEnabled(env);
   const editEnabled = isAiCommitEditEnabled(env);
   const allowEdit = editEnabled && options.edit;
   const allowRegen = editEnabled && options.regen;
@@ -114,6 +124,83 @@ export async function runCommitCommand(
   }
 
   const limits = getDiffLimits(env);
+  if (!configEnabled) {
+    const ignoredFlags = [
+      options.provider ? "--provider" : null,
+      options.model ? "--model" : null,
+      options.types && options.types.length > 0 ? "--types" : null,
+    ].filter((flag): flag is string => Boolean(flag));
+    if (ignoredFlags.length > 0) {
+      console.warn(
+        `Config feature flag disabled; ignoring ${ignoredFlags.join(", ")}.`,
+      );
+    }
+  }
+
+  let allowedTypes = DEFAULT_COMMIT_TYPES;
+  let subjectMaxLength = limits.subjectMaxLength;
+  let scopeMappings: ScopeMapping[] = [];
+  let providerId = DEFAULT_PROVIDER;
+  let modelId = DEFAULT_MODEL;
+
+  if (configEnabled) {
+    const configResolution = await resolveCommitConfig({
+      cwd,
+      env,
+      flags: {
+        providerId: options.provider,
+        modelId: options.model,
+        types: options.types,
+      },
+      defaults: {
+        providerId: DEFAULT_PROVIDER,
+        modelId: DEFAULT_MODEL,
+        allowedTypes: DEFAULT_COMMIT_TYPES,
+        subjectMaxLength: limits.subjectMaxLength,
+      },
+    });
+
+    if (configResolution.configFound) {
+      telemetry.emit("config_loaded", { path: configResolution.configPath });
+    }
+
+    if (
+      configResolution.configInvalid ||
+      configResolution.invalidSections.length > 0
+    ) {
+      telemetry.emit("config_invalid", {
+        path: configResolution.configPath,
+        sections: configResolution.invalidSections,
+      });
+    }
+
+    if (configResolution.fallbackUsed) {
+      telemetry.emit("config_fallback_used", {
+        path: configResolution.configPath,
+        reason: configResolution.configFound ? "invalid" : "missing",
+      });
+    }
+
+    telemetry.emit("effective_config_resolved", {
+      path: configResolution.configPath,
+      providerSource: configResolution.sources.providerId,
+      modelSource: configResolution.sources.modelId,
+      typesSource: configResolution.sources.allowedTypes,
+      subjectSource: configResolution.sources.subjectMaxLength,
+      scopeSource: configResolution.sources.scopeMappings,
+    });
+
+    for (const warning of configResolution.warnings) {
+      console.warn(warning);
+    }
+
+    allowedTypes = configResolution.effective.allowedTypes;
+    subjectMaxLength = configResolution.effective.subjectMaxLength;
+    scopeMappings = configResolution.effective.scopeMappings;
+    providerId = configResolution.effective.providerId;
+    modelId = configResolution.effective.modelId;
+  }
+
   const diff = collectBoundedDiff(cwd, limits);
   if (diff.diffTruncated || diff.filesTruncated) {
     telemetry.emit("diff_truncated", {
@@ -124,13 +211,22 @@ export async function runCommitCommand(
     console.warn("Diff truncated for safety.");
   }
 
+  const mappedScope = resolveScopeFromMappings(diff.files, scopeMappings);
+
   let providerContext: ProviderAuthContext;
   try {
     providerContext = await createProviderAuthContext({
       promptForKey: () => promptSecret("API key: "),
       env,
+      providerId,
+      modelId,
     });
     await providerContext.provider.verifyApiKey();
+    if (providerContext.modelFallbackUsed && modelId) {
+      console.warn(
+        `Model ${modelId} not found; using ${providerContext.modelId} instead.`,
+      );
+    }
   } catch (error) {
     const authError = error instanceof ProviderAuthError ? error : undefined;
     telemetry.emit("commit_failed", { code: authError?.code ?? "auth_error" });
@@ -143,11 +239,14 @@ export async function runCommitCommand(
     proposal = await generateCommitProposal(
       {
         diff,
-        allowedTypes: DEFAULT_COMMIT_TYPES,
-        subjectMaxLength: limits.subjectMaxLength,
+        allowedTypes,
+        subjectMaxLength,
       },
       providerContext.provider,
     );
+    if (mappedScope) {
+      proposal.scope = mappedScope;
+    }
     telemetry.emit("proposal_generated", {
       type: proposal.type,
       scope: proposal.scope ?? null,
@@ -209,11 +308,14 @@ export async function runCommitCommand(
       const regenerated = await generateCommitProposal(
         {
           diff,
-          allowedTypes: DEFAULT_COMMIT_TYPES,
-          subjectMaxLength: limits.subjectMaxLength,
+          allowedTypes,
+          subjectMaxLength,
         },
         providerContext.provider,
       );
+      if (mappedScope) {
+        regenerated.scope = mappedScope;
+      }
       const regeneratedMessage = formatCommitMessage(regenerated);
       if (regeneratedMessage === previousMessage) {
         console.log("Regenerated message is identical to previous proposal.");
@@ -240,13 +342,13 @@ export async function runCommitCommand(
   telemetry.emit("preview_shown");
 
   const subjectLine = getSubjectLine(message);
-  if (subjectLine.length > limits.subjectMaxLength) {
+  if (subjectLine.length > subjectMaxLength) {
     console.warn(
-      `Subject exceeds ${limits.subjectMaxLength} characters; consider shortening.`,
+      `Subject exceeds ${subjectMaxLength} characters; consider shortening.`,
     );
   }
 
-  if (!isConventionalCommit(message, DEFAULT_COMMIT_TYPES)) {
+  if (!isConventionalCommit(message, allowedTypes)) {
     console.warn(
       "Message does not match Conventional Commit format; consider editing.",
     );

@@ -61,6 +61,45 @@ describe("commit flow", () => {
     expect(after).toBe(before);
   });
 
+  it("applies scope mapping from config", async () => {
+    const repoDir = await createTempDir("cmt-repo-");
+    initGitRepo(repoDir);
+    await writeFile(repoDir, "README.md", "hello\n");
+    runGit(repoDir, ["add", "README.md"]);
+
+    await writeFile(
+      repoDir,
+      ".cmt.json",
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          scopeMappings: [{ prefix: "README.md", scope: "docs" }],
+        },
+        null,
+        2,
+      ),
+    );
+
+    const env = defaultEnv(repoDir);
+    env.FEATURE_AI_COMMIT_CONFIG = "1";
+    env.CMT_MOCK_PROPOSAL_JSON = JSON.stringify({
+      type: "docs",
+      scope: "core",
+      subject: "update readme",
+    });
+
+    const result = runCli(repoDir, ["commit", "--yes"], env);
+    expect(result.exitCode).toBe(0);
+
+    const log = runGit(repoDir, ["log", "-1", "--pretty=%s"]);
+    expect(log.stdout.trim()).toBe("docs(docs): update readme");
+
+    const events = await readTelemetryEvents(env.CMT_TELEMETRY_PATH ?? "");
+    const eventNames = events.map((event) => event.name);
+    expect(eventNames).toContain("config_loaded");
+    expect(eventNames).toContain("effective_config_resolved");
+  });
+
   it("regenerates proposal when requested", async () => {
     const repoDir = await createTempDir("cmt-repo-");
     initGitRepo(repoDir);

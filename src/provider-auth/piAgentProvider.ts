@@ -1,4 +1,4 @@
-import { getModel } from "@mariozechner/pi-ai";
+import type { Api, Model } from "@mariozechner/pi-ai";
 import {
   type AuthStorage,
   createAgentSession,
@@ -56,8 +56,7 @@ async function withTimeout<T>(
   }
 }
 
-async function createSession(authStorage: AuthStorage) {
-  const model = getModel(DEFAULT_PROVIDER_ID, DEFAULT_MODEL_ID);
+async function createSession(authStorage: AuthStorage, model: Model<Api>) {
   const modelRegistry = new ModelRegistry(authStorage);
   const { session } = await createAgentSession({
     model,
@@ -68,46 +67,89 @@ async function createSession(authStorage: AuthStorage) {
   return session;
 }
 
+function resolveModelSelection(
+  authStorage: AuthStorage,
+  providerId: string,
+  modelId?: string,
+): { model: Model<Api>; modelId: string; fallbackUsed: boolean } {
+  const registry = new ModelRegistry(authStorage);
+  const available = registry
+    .getAll()
+    .filter((model) => model.provider === providerId);
+
+  if (available.length === 0) {
+    throw new ProviderAuthError(
+      `Unknown provider: ${providerId}`,
+      "unknown_provider",
+    );
+  }
+
+  if (modelId) {
+    const found = registry.find(providerId, modelId);
+    if (found) {
+      return { model: found, modelId: found.id, fallbackUsed: false };
+    }
+  }
+
+  const fallback = available[0];
+  return {
+    model: fallback,
+    modelId: fallback.id,
+    fallbackUsed: modelId !== undefined,
+  };
+}
+
 export function createPiAgentProvider(
   authStorage: AuthStorage,
-): CommitMessageProvider {
+  providerId: string,
+  modelId?: string,
+): {
+  provider: CommitMessageProvider;
+  modelId: string;
+  modelFallbackUsed: boolean;
+} {
+  const selection = resolveModelSelection(authStorage, providerId, modelId);
   return {
-    async verifyApiKey(): Promise<void> {
-      const session = await createSession(authStorage);
-      try {
-        await withTimeout(
-          session.prompt("Respond with OK."),
-          VERIFY_TIMEOUT_MS,
-          "Provider timeout",
-        );
-      } catch (error) {
-        throw classifyProviderError(error);
-      } finally {
-        session.dispose();
-      }
-    },
-    async generateCommitProposal(prompt: string): Promise<string> {
-      const session = await createSession(authStorage);
-      try {
-        await withTimeout(
-          session.prompt(prompt),
-          PROMPT_TIMEOUT_MS,
-          "Provider timeout",
-        );
-        const output = session.getLastAssistantText();
-        if (!output) {
-          throw new ProviderAuthError(
-            "Provider returned empty response",
-            "provider_failure",
+    provider: {
+      async verifyApiKey(): Promise<void> {
+        const session = await createSession(authStorage, selection.model);
+        try {
+          await withTimeout(
+            session.prompt("Respond with OK."),
+            VERIFY_TIMEOUT_MS,
+            "Provider timeout",
           );
+        } catch (error) {
+          throw classifyProviderError(error);
+        } finally {
+          session.dispose();
         }
-        return output;
-      } catch (error) {
-        throw classifyProviderError(error);
-      } finally {
-        session.dispose();
-      }
+      },
+      async generateCommitProposal(prompt: string): Promise<string> {
+        const session = await createSession(authStorage, selection.model);
+        try {
+          await withTimeout(
+            session.prompt(prompt),
+            PROMPT_TIMEOUT_MS,
+            "Provider timeout",
+          );
+          const output = session.getLastAssistantText();
+          if (!output) {
+            throw new ProviderAuthError(
+              "Provider returned empty response",
+              "provider_failure",
+            );
+          }
+          return output;
+        } catch (error) {
+          throw classifyProviderError(error);
+        } finally {
+          session.dispose();
+        }
+      },
     },
+    modelId: selection.modelId,
+    modelFallbackUsed: selection.fallbackUsed,
   };
 }
 
