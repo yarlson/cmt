@@ -1,6 +1,7 @@
 import {
   getDiffLimits,
   isAiCommitBasicEnabled,
+  isAiCommitEditEnabled,
 } from "../config-policy/index.js";
 import {
   collectBoundedDiff,
@@ -22,10 +23,13 @@ import {
   ProviderAuthError,
 } from "../provider-auth/index.js";
 import { createTelemetry } from "../telemetry/index.js";
+import { editMessageInEditor } from "./editor.js";
 import { promptConfirm, promptSecret } from "./prompts.js";
 
 export interface CommitCommandOptions {
   dryRun: boolean;
+  edit: boolean;
+  regen: boolean;
   yes: boolean;
   env?: NodeJS.ProcessEnv;
   cwd?: string;
@@ -40,16 +44,48 @@ function printPreview(message: string, rationale?: string): void {
   }
 }
 
+function getSubjectLine(message: string): string {
+  const [line] = message.split(/\r?\n/);
+  return line ?? "";
+}
+
+function isConventionalCommit(
+  message: string,
+  allowedTypes: string[],
+): boolean {
+  const subject = getSubjectLine(message).trim();
+  if (subject.length === 0) {
+    return false;
+  }
+
+  const match = subject.match(/^(\w+)(\([^)]+\))?:\s+(.+)$/);
+  if (!match) {
+    return false;
+  }
+
+  return allowedTypes.includes(match[1]);
+}
+
 export async function runCommitCommand(
   options: CommitCommandOptions,
 ): Promise<number> {
   const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
   const telemetry = createTelemetry(env);
+  const editEnabled = isAiCommitEditEnabled(env);
+  const allowEdit = editEnabled && options.edit;
+  const allowRegen = editEnabled && options.regen;
 
   if (!isAiCommitBasicEnabled(env)) {
     console.log("feature disabled");
     return 0;
+  }
+
+  if (allowEdit && !process.stdin.isTTY) {
+    console.error(
+      "Non-interactive shell does not support --edit. Set $EDITOR and run interactively.",
+    );
+    return 1;
   }
 
   if (!process.stdin.isTTY && !options.yes) {
@@ -124,13 +160,95 @@ export async function runCommitCommand(
     return 1;
   }
 
-  const message = formatCommitMessage(proposal);
-  printPreview(message, proposal.rationale);
+  let message = formatCommitMessage(proposal);
+  let rationale = proposal.rationale;
+
+  if (allowEdit) {
+    telemetry.emit("edit_requested");
+    const editorCommand = env.EDITOR?.trim();
+    if (!editorCommand) {
+      const warning =
+        "$EDITOR is not set. Set EDITOR to use --edit. Continuing without edit.";
+      if (options.yes) {
+        console.warn(warning);
+      } else {
+        const continueWithoutEdit = await promptConfirm(
+          "$EDITOR is not set. Set EDITOR to use --edit. Continue without edit? [y/N] ",
+        );
+        if (!continueWithoutEdit) {
+          console.log("Cancelled.");
+          return 0;
+        }
+      }
+    } else {
+      const editResult = await editMessageInEditor(message, editorCommand);
+      telemetry.emit("edit_completed", {
+        exitCode: editResult.exitCode ?? null,
+        signal: editResult.signal ?? null,
+        applied: editResult.status === "edited",
+      });
+
+      if (editResult.status === "edited" && editResult.message) {
+        message = editResult.message;
+        rationale = undefined;
+      } else if (editResult.status === "empty") {
+        console.error("Edited message is empty. Keeping previous message.");
+      } else {
+        const exitCode = editResult.exitCode ?? "unknown";
+        console.warn(
+          `Editor exited with code ${exitCode}. Keeping previous message.`,
+        );
+      }
+    }
+  }
+
+  if (allowRegen) {
+    telemetry.emit("regen_requested");
+    const previousMessage = message;
+    try {
+      const regenerated = await generateCommitProposal(
+        {
+          diff,
+          allowedTypes: DEFAULT_COMMIT_TYPES,
+          subjectMaxLength: limits.subjectMaxLength,
+        },
+        providerContext.provider,
+      );
+      const regeneratedMessage = formatCommitMessage(regenerated);
+      if (regeneratedMessage === previousMessage) {
+        console.log("Regenerated message is identical to previous proposal.");
+      }
+      message = regeneratedMessage;
+      rationale = regenerated.rationale;
+      proposal = regenerated;
+      telemetry.emit("regen_succeeded", {
+        type: regenerated.type,
+        scope: regenerated.scope ?? null,
+        identical: regeneratedMessage === previousMessage,
+      });
+    } catch (error) {
+      const messageText =
+        error instanceof MessageEngineError ? error.message : "Regen failed.";
+      const code =
+        error instanceof MessageEngineError ? error.code : "regen_failed";
+      telemetry.emit("regen_failed", { code });
+      console.warn(`${messageText} Using previous message.`);
+    }
+  }
+
+  printPreview(message, rationale);
   telemetry.emit("preview_shown");
 
-  if (proposal.subject.length > limits.subjectMaxLength) {
+  const subjectLine = getSubjectLine(message);
+  if (subjectLine.length > limits.subjectMaxLength) {
     console.warn(
       `Subject exceeds ${limits.subjectMaxLength} characters; consider shortening.`,
+    );
+  }
+
+  if (!isConventionalCommit(message, DEFAULT_COMMIT_TYPES)) {
+    console.warn(
+      "Message does not match Conventional Commit format; consider editing.",
     );
   }
 
