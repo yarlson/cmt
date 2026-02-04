@@ -112,3 +112,123 @@
 - **2-minute demo script:** Run `tool commit`, highlight the new prompt, Decision block, and next steps; show NO_COLOR fallback
 - **Release note blurb:** "New premium CLI design system: clearer prompts, cleaner output, and more actionable errors."
 - **Known limitations:** No custom themes yet; monochrome fallback only
+
+Here’s an Apple‑grade CLI prompt/output design system, voiced by a GTM lead, VP of Design, and Principal Engineer. It includes color mapping with chalk, copy and micro‑copy, and a cohesive interaction model.
+
+### Vision
+
+- **GTM Lead:** “Make every prompt feel like a premium product moment—clear intent, confident guidance, zero confusion.”
+- **VP Design:** “Quietly iconic: high contrast, soft rhythm, and typography that breathes. The UI should whisper ‘premium’.”
+- **Principal Engineer:** “Deterministic, accessible, and fast. Same inputs must yield the same output shape every time.”
+
+### Design Principles
+
+- **Clarity first:** every line communicates state, intent, or action.
+- **Predictable structure:** consistent layout for prompt, output, status, and next actions.
+- **Low noise:** minimal ornament; color signals meaning, not decoration.
+- **Grace under failure:** errors are polite, precise, and actionable.
+- **Extensibility:** all tokens are themable and exposed.
+
+### Token System (Chalk)
+
+- `textDefault` `#e6e6e6` (normal identifiers, core content)
+- `textSecondary` `#c5c8c6` (hints, less‑emphasized text)
+- `kw` `#b294bb` (keywords/modifiers)
+- `const` `#de935f` (flags/constants)
+- `fn` `#f0c674` (function/method names)
+- `type` `#8abeb7` (type names/annotations)
+- `import` `#81a2be` (imports/modules/paths)
+- `string` `#b5bd68` (strings)
+- `error` `#cc6666` (errors/important tokens)
+- `diffAdd` `#8ec07c` (diff additions)
+- `thinking` `#d19a66` (“Thinking:” output)
+- `highlight` `#61afef` (focused identifiers)
+
+### Chalk Usage Snippet
+
+```ts
+import chalk from "chalk";
+
+const c = {
+  textDefault: chalk.hex("#e6e6e6"),
+  textSecondary: chalk.hex("#c5c8c6"),
+  kw: chalk.hex("#b294bb"),
+  const: chalk.hex("#de935f"),
+  fn: chalk.hex("#f0c674"),
+  type: chalk.hex("#8abeb7"),
+  import: chalk.hex("#81a2be"),
+  string: chalk.hex("#b5bd68"),
+  error: chalk.hex("#cc6666"),
+  diffAdd: chalk.hex("#8ec07c"),
+  thinking: chalk.hex("#d19a66"),
+  highlight: chalk.hex("#61afef"),
+};
+```
+
+### Information Architecture
+
+- **Prompt line:** `›` + short intent label + user input
+- **Status line:** state tags (`Thinking`, `Working`, `Done`, `Needs input`)
+- **Output blocks:** grouped by task stage; each block starts with a short title
+- **Action footer:** “Next steps” with 1–3 numbered options
+
+### Core Prompt Styles
+
+- **Standard prompt**
+  - `›` in `textSecondary`
+  - Intent label in `highlight`
+  - User input in `textDefault`
+- **Thinking**
+  - Prefix: `Thinking:` in `thinking`
+  - Body in `textSecondary`
+- **Warnings**
+  - Prefix: `Note:` in `const`
+  - Body in `textSecondary`
+- **Errors**
+  - Prefix: `Error:` in `error`
+  - Body in `textDefault`
+
+### Copy System (GTM Voice)
+
+- Short, confident, and outcome‑oriented
+- Avoid “maybe”, “try”, and “hopefully”
+- State what happened, why it matters, and what to do next
+
+### Micro‑copy Library
+
+- **Acknowledgement**
+  - “Got it. I’ll take it from here.”
+  - “Understood. Processing your request.”
+- **Thinking**
+  - “Thinking: mapping tasks to steps.”
+  - “Thinking: checking repository state.”
+- **Progress**
+  - “Working: preparing changes.”
+  - “Working: validating output.”
+- **Success**
+  - “Done. Changes are ready.”
+  - “All set. You can review the diff.”
+- **Error**
+  - “Error: missing configuration file.”
+  - “Error: command failed. See details below.”
+- **Next steps**
+  - “Next steps:”
+  - “1) Review changes”
+  - “2) Run tests”
+  - “3) Create commit”
+
+### Output Patterns
+
+- **Decision block**
+  - Title: `Decision` in `highlight`
+  - Bullet list in `textDefault`
+- **Diff block**
+  - Added lines in `diffAdd`
+  - Context lines in `textSecondary`
+  - Highlight identifiers with `highlight`
+- **Code block**
+  - Keywords in `kw`
+  - Types in `type`
+  - Functions in `fn`
+  - Strings in `string`
+  - Imports in `import`
