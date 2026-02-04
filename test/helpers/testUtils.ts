@@ -69,14 +69,3 @@ export function initGitRepo(cwd: string): void {
   runGit(cwd, ["config", "user.email", "test@example.com"]);
   runGit(cwd, ["config", "user.name", "Test User"]);
 }
-
-export async function readTelemetryEvents(
-  telemetryPath: string,
-): Promise<Array<Record<string, unknown>>> {
-  const content = await fs.readFile(telemetryPath, "utf8");
-  return content
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => JSON.parse(line) as Record<string, unknown>);
-}

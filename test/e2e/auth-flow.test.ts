@@ -9,7 +9,6 @@ describe("auth flow", () => {
       ...process.env,
       CMT_PROVIDER_MODE: "mock",
       CMT_AUTH_PATH: path.join(dir, "auth.json"),
-      CMT_TELEMETRY_PATH: path.join(dir, "telemetry.jsonl"),
     };
 
     const result = runCli(dir, ["auth", "--provider", "mock"], env);

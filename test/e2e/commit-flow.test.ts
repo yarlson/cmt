@@ -4,7 +4,6 @@ import path from "node:path";
 import {
   createTempDir,
   initGitRepo,
-  readTelemetryEvents,
   runCli,
   runGit,
   writeFile,
@@ -15,11 +14,10 @@ const defaultEnv = (baseDir: string): NodeJS.ProcessEnv => ({
   PI_API_KEY: "test-key",
   CMT_PROVIDER_MODE: "mock",
   CMT_AUTH_PATH: path.join(baseDir, "auth.json"),
-  CMT_TELEMETRY_PATH: path.join(baseDir, "telemetry.jsonl"),
 });
 
 describe("commit flow", () => {
-  it("commits staged changes with preview and telemetry", async () => {
+  it("commits staged changes with preview", async () => {
     const repoDir = await createTempDir("cmt-repo-");
     initGitRepo(repoDir);
     await writeFile(repoDir, "README.md", "hello\n");
@@ -33,11 +31,6 @@ describe("commit flow", () => {
 
     const log = runGit(repoDir, ["log", "-1", "--pretty=%s"]);
     expect(log.stdout.trim()).toBe("feat(core): add greeting");
-
-    const events = await readTelemetryEvents(env.CMT_TELEMETRY_PATH ?? "");
-    const eventNames = events.map((event) => event.name);
-    expect(eventNames).toContain("commit_flow_started");
-    expect(eventNames).toContain("commit_succeeded");
   });
 
   it("prints message on dry-run without committing", async () => {
@@ -88,11 +81,6 @@ describe("commit flow", () => {
     const status = runGit(repoDir, ["status", "--porcelain"]);
     expect(status.stdout).toContain("?? notes.txt");
     expect(status.stdout).not.toContain("README.md");
-
-    const events = await readTelemetryEvents(env.CMT_TELEMETRY_PATH ?? "");
-    const eventNames = events.map((event) => event.name);
-    expect(eventNames).toContain("include_unstaged_requested");
-    expect(eventNames).toContain("staging_completed");
   });
 
   it("applies scope mapping from config", async () => {
@@ -126,11 +114,6 @@ describe("commit flow", () => {
 
     const log = runGit(repoDir, ["log", "-1", "--pretty=%s"]);
     expect(log.stdout.trim()).toBe("docs(docs): update readme");
-
-    const events = await readTelemetryEvents(env.CMT_TELEMETRY_PATH ?? "");
-    const eventNames = events.map((event) => event.name);
-    expect(eventNames).toContain("config_loaded");
-    expect(eventNames).toContain("effective_config_resolved");
   });
 
   it("regenerates proposal when requested", async () => {
@@ -143,11 +126,6 @@ describe("commit flow", () => {
 
     const result = runCli(repoDir, ["commit", "--regen", "--yes"], env);
     expect(result.exitCode).toBe(0);
-
-    const events = await readTelemetryEvents(env.CMT_TELEMETRY_PATH ?? "");
-    const eventNames = events.map((event) => event.name);
-    expect(eventNames).toContain("regen_requested");
-    expect(eventNames).toContain("regen_succeeded");
   });
 
   it("rejects edit in non-interactive shells", async () => {
@@ -261,12 +239,6 @@ describe("commit flow", () => {
     const result = runCli(repoDir, ["commit", "--yes"], env);
     expect(result.exitCode).toBe(0);
     expect(`${result.stdout}${result.stderr}`).toContain("Diff truncated");
-
-    const events = await readTelemetryEvents(env.CMT_TELEMETRY_PATH ?? "");
-    const eventNames = events.map((event) => event.name);
-    expect(eventNames).toContain("diff_size_exceeded");
-    expect(eventNames).toContain("diff_truncated");
-    expect(eventNames).toContain("truncation_warning_shown");
   });
 
   it("warns when only binary files change", async () => {

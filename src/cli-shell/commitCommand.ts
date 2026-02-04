@@ -27,7 +27,6 @@ import {
   type ProviderAuthContext,
   ProviderAuthError,
 } from "../provider-auth/index.js";
-import { createTelemetry } from "../telemetry/index.js";
 import { editMessageInEditor } from "./editor.js";
 import { promptConfirm, promptSecret } from "./prompts.js";
 
@@ -141,7 +140,6 @@ export async function runCommitCommand(
 ): Promise<number> {
   const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
-  const telemetry = createTelemetry(env);
   const allowEdit = options.edit;
   const allowRegen = options.regen;
   const includeUnstaged = options.includeUnstaged;
@@ -159,16 +157,11 @@ export async function runCommitCommand(
     return 1;
   }
 
-  telemetry.emit("commit_flow_started", { cwd });
-
   try {
     ensureRepoState(cwd);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Repo validation failed.";
-    const code =
-      error instanceof GitContextError ? error.code : "repo_validation_failed";
-    telemetry.emit("repo_validation_failed", { code });
     console.error(message);
     return 1;
   }
@@ -176,11 +169,6 @@ export async function runCommitCommand(
   if (includeUnstaged) {
     const unstagedTrackedFiles = getUnstagedTrackedFiles(cwd);
     const untrackedFiles = getUntrackedFiles(cwd);
-
-    telemetry.emit("include_unstaged_requested", {
-      trackedCount: unstagedTrackedFiles.length,
-      untrackedCount: untrackedFiles.length,
-    });
 
     if (unstagedTrackedFiles.length === 0) {
       console.warn(
@@ -211,21 +199,11 @@ export async function runCommitCommand(
         }
       }
 
-      telemetry.emit("staging_confirmed", {
-        fileCount: unstagedTrackedFiles.length,
-      });
-
       try {
         stagingAttempted = true;
         stageTrackedChanges(cwd);
-        telemetry.emit("staging_completed", {
-          fileCount: unstagedTrackedFiles.length,
-        });
       } catch (error) {
         const gitError = error instanceof GitContextError ? error : undefined;
-        telemetry.emit("staging_failed", {
-          code: gitError?.code ?? "staging_failed",
-        });
         console.error(gitError?.message ?? "Staging failed.");
         if (gitError?.details) {
           console.error(gitError.details);
@@ -265,36 +243,6 @@ export async function runCommitCommand(
     },
   });
 
-  if (configResolution.configFound) {
-    telemetry.emit("config_loaded", { path: configResolution.configPath });
-  }
-
-  if (
-    configResolution.configInvalid ||
-    configResolution.invalidSections.length > 0
-  ) {
-    telemetry.emit("config_invalid", {
-      path: configResolution.configPath,
-      sections: configResolution.invalidSections,
-    });
-  }
-
-  if (configResolution.fallbackUsed) {
-    telemetry.emit("config_fallback_used", {
-      path: configResolution.configPath,
-      reason: configResolution.configFound ? "invalid" : "missing",
-    });
-  }
-
-  telemetry.emit("effective_config_resolved", {
-    path: configResolution.configPath,
-    providerSource: configResolution.sources.providerId,
-    modelSource: configResolution.sources.modelId,
-    typesSource: configResolution.sources.allowedTypes,
-    subjectSource: configResolution.sources.subjectMaxLength,
-    scopeSource: configResolution.sources.scopeMappings,
-  });
-
   for (const warning of configResolution.warnings) {
     console.warn(warning);
   }
@@ -310,30 +258,11 @@ export async function runCommitCommand(
     diff = collectBoundedDiff(cwd, limits);
   } catch (error) {
     const gitError = error instanceof GitContextError ? error : undefined;
-    telemetry.emit("commit_failed", {
-      code: gitError?.code ?? "diff_failed",
-    });
     console.error(gitError?.message ?? "Failed to collect diff.");
     if (gitError?.details) {
       console.error(gitError.details);
     }
     return 1;
-  }
-
-  if (diff.diffTruncated || diff.filesTruncated) {
-    telemetry.emit("diff_size_exceeded", {
-      diffBytes: diff.diffBytes,
-      maxDiffBytes: diff.maxDiffBytes,
-      totalFiles: diff.totalFiles,
-      maxFileCount: limits.maxFileCount,
-      diffTruncated: diff.diffTruncated,
-      filesTruncated: diff.filesTruncated,
-    });
-    telemetry.emit("diff_truncated", {
-      diffTruncated: diff.diffTruncated,
-      filesTruncated: diff.filesTruncated,
-      totalFiles: diff.totalFiles,
-    });
   }
 
   const binaryOnlyChanges =
@@ -359,7 +288,6 @@ export async function runCommitCommand(
     }
   } catch (error) {
     const authError = error instanceof ProviderAuthError ? error : undefined;
-    telemetry.emit("commit_failed", { code: authError?.code ?? "auth_error" });
     console.error(authError?.message ?? "Auth failed.");
     return 1;
   }
@@ -377,14 +305,9 @@ export async function runCommitCommand(
     if (mappedScope) {
       proposal.scope = mappedScope;
     }
-    telemetry.emit("proposal_generated", {
-      type: proposal.type,
-      scope: proposal.scope ?? null,
-    });
   } catch (error) {
     const message =
       error instanceof MessageEngineError ? error.message : "Proposal failed.";
-    telemetry.emit("commit_failed", { code: "proposal_failed" });
     console.error(message);
     return 1;
   }
@@ -393,7 +316,6 @@ export async function runCommitCommand(
   let rationale = proposal.rationale;
 
   if (allowEdit) {
-    telemetry.emit("edit_requested");
     const editorCommand = env.EDITOR?.trim();
     if (!editorCommand) {
       const warning =
@@ -411,12 +333,6 @@ export async function runCommitCommand(
       }
     } else {
       const editResult = await editMessageInEditor(message, editorCommand);
-      telemetry.emit("edit_completed", {
-        exitCode: editResult.exitCode ?? null,
-        signal: editResult.signal ?? null,
-        applied: editResult.status === "edited",
-      });
-
       if (editResult.status === "edited" && editResult.message) {
         message = editResult.message;
         rationale = undefined;
@@ -432,7 +348,6 @@ export async function runCommitCommand(
   }
 
   if (allowRegen) {
-    telemetry.emit("regen_requested");
     const previousMessage = message;
     try {
       const regenerated = await generateCommitProposal(
@@ -453,17 +368,9 @@ export async function runCommitCommand(
       message = regeneratedMessage;
       rationale = regenerated.rationale;
       proposal = regenerated;
-      telemetry.emit("regen_succeeded", {
-        type: regenerated.type,
-        scope: regenerated.scope ?? null,
-        identical: regeneratedMessage === previousMessage,
-      });
     } catch (error) {
       const messageText =
         error instanceof MessageEngineError ? error.message : "Regen failed.";
-      const code =
-        error instanceof MessageEngineError ? error.code : "regen_failed";
-      telemetry.emit("regen_failed", { code });
       console.warn(`${messageText} Using previous message.`);
     }
   }
@@ -480,13 +387,6 @@ export async function runCommitCommand(
   }
 
   printPreview(message, rationale, warnings);
-  telemetry.emit("preview_shown");
-  if (truncationWarning) {
-    telemetry.emit("truncation_warning_shown", {
-      diffTruncated: diff.diffTruncated,
-      filesTruncated: diff.filesTruncated,
-    });
-  }
 
   const subjectLine = getSubjectLine(message);
   if (subjectLine.length > subjectMaxLength) {
@@ -509,8 +409,6 @@ export async function runCommitCommand(
     }
   }
 
-  telemetry.emit("commit_confirmed", { dryRun: options.dryRun });
-
   if (options.dryRun) {
     console.log("Dry run message:");
     console.log(message);
@@ -519,14 +417,10 @@ export async function runCommitCommand(
 
   try {
     const result = commitWithMessage(cwd, message);
-    telemetry.emit("commit_succeeded", { hash: result.hash });
     console.log(`Commit: ${result.hash} ${result.subject}`);
     return 0;
   } catch (error) {
     const gitError = error instanceof GitContextError ? error : undefined;
-    telemetry.emit("commit_failed", {
-      code: gitError?.code ?? "commit_failed",
-    });
     console.error(gitError?.message ?? "Commit failed.");
     if (gitError?.details) {
       console.error(gitError.details);

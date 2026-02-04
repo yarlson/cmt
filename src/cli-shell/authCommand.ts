@@ -6,7 +6,6 @@ import {
   type OAuthProviderSummary,
   ProviderAuthError,
 } from "../provider-auth/index.js";
-import { createTelemetry } from "../telemetry/index.js";
 import { promptConfirm, promptInput } from "./prompts.js";
 
 export interface AuthCommandOptions {
@@ -48,7 +47,6 @@ export async function runAuthCommand(
   options: AuthCommandOptions,
 ): Promise<number> {
   const env = options.env ?? process.env;
-  const telemetry = createTelemetry(env);
 
   const providers = listOAuthProviders(env);
   const providerList = formatProviderList(providers);
@@ -87,8 +85,6 @@ export async function runAuthCommand(
     }
     console.log(`Starting OAuth login for ${selectedProvider.name}...`);
   }
-
-  telemetry.emit("oauth_started", { provider: selectedProvider.id });
 
   try {
     const result = await loginWithOAuth({
@@ -137,21 +133,10 @@ export async function runAuthCommand(
           },
     });
 
-    telemetry.emit("oauth_completed", { provider: result.providerId });
-    telemetry.emit("auth_token_stored", { provider: result.providerId });
     console.log(`OAuth login complete for ${result.providerName}.`);
     return 0;
   } catch (error) {
     const authError = error instanceof ProviderAuthError ? error : undefined;
-    if (authError?.code === "auth_verification_failed") {
-      telemetry.emit("auth_verification_failed", {
-        provider: selectedProvider.id,
-      });
-    }
-    telemetry.emit("oauth_failed", {
-      provider: selectedProvider.id,
-      code: authError?.code ?? "oauth_failed",
-    });
     const message = authError?.message ?? "OAuth failed.";
     if (authError?.code === "oauth_cancelled") {
       console.log(message);
