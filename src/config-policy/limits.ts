@@ -10,7 +10,7 @@ export interface DiffLimitsResolution {
   fallbackUsed: boolean;
 }
 
-const DEFAULT_LIMITS: DiffLimits = {
+export const DEFAULT_LIMITS: DiffLimits = {
   maxDiffBytes: 20000,
   maxFileCount: 50,
   subjectMaxLength: 72,

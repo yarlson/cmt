@@ -10,6 +10,7 @@ export {
   type ScopeMapping,
 } from "./commitConfig.js";
 export {
+  DEFAULT_LIMITS,
   type DiffLimits,
   type DiffLimitsResolution,
   getDiffLimits,

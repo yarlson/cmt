@@ -1,9 +1,11 @@
 {
   "schemaVersion": 1,
-  "provider": "openai-codex",
-  "model": "gpt-5.2-codex",
+  "provider": "google-gemini-cl",
+  "model": "gemini-3-flash-preview",
   "types": ["feat", "fix", "docs", "refactor", "test", "perf", "chore"],
   "subjectMaxLength": 72,
+  "maxDiffBytes": 200000,
+  "maxFileCount": 200,
   "scopeMappings": [
     { "prefix": "src/cli", "scope": "cli" },
     { "prefix": "src/cli-shell", "scope": "cli" },

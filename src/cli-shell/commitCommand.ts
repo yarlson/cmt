@@ -1,7 +1,7 @@
 import { cancel, intro, log, note, outro, spinner } from "@clack/prompts";
 import {
+  DEFAULT_LIMITS,
   resolveCommitConfig,
-  resolveDiffLimits,
   resolveScopeFromMappings,
 } from "../config-policy/index.js";
 import {
@@ -143,7 +143,6 @@ export async function runCommitCommand(
     return 0;
   }
 
-  const limits = resolveDiffLimits(env).limits;
   const configResolution = await resolveCommitConfig({
     cwd,
     env,
@@ -156,19 +155,27 @@ export async function runCommitCommand(
       providerId: DEFAULT_PROVIDER,
       modelId: DEFAULT_MODEL,
       allowedTypes: DEFAULT_COMMIT_TYPES,
-      subjectMaxLength: limits.subjectMaxLength,
+      subjectMaxLength: DEFAULT_LIMITS.subjectMaxLength,
+      maxDiffBytes: DEFAULT_LIMITS.maxDiffBytes,
+      maxFileCount: DEFAULT_LIMITS.maxFileCount,
     },
   });
 
   const allowedTypes = configResolution.effective.allowedTypes;
   const subjectMaxLength = configResolution.effective.subjectMaxLength;
+  const maxDiffBytes = configResolution.effective.maxDiffBytes;
+  const maxFileCount = configResolution.effective.maxFileCount;
   const scopeMappings = configResolution.effective.scopeMappings;
   const providerId = configResolution.effective.providerId;
   const modelId = configResolution.effective.modelId;
 
   let diff: ReturnType<typeof collectBoundedDiff>;
   try {
-    diff = collectBoundedDiff(cwd, limits);
+    diff = collectBoundedDiff(cwd, {
+      maxDiffBytes,
+      maxFileCount,
+      subjectMaxLength,
+    });
   } catch (error) {
     const gitError = error instanceof GitContextError ? error : undefined;
     log.error(gitError?.message ?? "Failed to collect diff.", stderr);

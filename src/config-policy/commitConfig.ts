@@ -19,6 +19,8 @@ export interface CommitConfigDefaults {
   modelId: string;
   allowedTypes: string[];
   subjectMaxLength: number;
+  maxDiffBytes: number;
+  maxFileCount: number;
 }
 
 export interface CommitConfigFlags {
@@ -26,6 +28,8 @@ export interface CommitConfigFlags {
   modelId?: string;
   types?: string[];
   subjectMaxLength?: number;
+  maxDiffBytes?: number;
+  maxFileCount?: number;
 }
 
 export interface CommitConfig {
@@ -33,6 +37,8 @@ export interface CommitConfig {
   modelId: string;
   allowedTypes: string[];
   subjectMaxLength: number;
+  maxDiffBytes: number;
+  maxFileCount: number;
   scopeMappings: ScopeMapping[];
 }
 
@@ -53,6 +59,8 @@ const PROVIDER_ENV = "CMT_PROVIDER";
 const MODEL_ENV = "CMT_MODEL";
 const TYPES_ENV = "CMT_TYPES";
 const SUBJECT_MAX_ENV = "CMT_SUBJECT_MAX_LENGTH";
+const MAX_DIFF_BYTES_ENV = "CMT_MAX_DIFF_BYTES";
+const MAX_FILE_COUNT_ENV = "CMT_MAX_FILES";
 const DEFAULT_CONFIG_FILE = ".cmt.json";
 const GLOBAL_CONFIG_FILE = path.join(
   os.homedir(),
@@ -68,6 +76,8 @@ interface ConfigFileV1 {
   model?: string;
   types?: string[];
   subjectMaxLength?: number;
+  maxDiffBytes?: number;
+  maxFileCount?: number;
   scopeMappings?: ScopeMapping[];
 }
 
@@ -76,7 +86,13 @@ function buildDefaultConfig(
 ): Required<
   Pick<
     ConfigFileV1,
-    "schemaVersion" | "provider" | "model" | "types" | "subjectMaxLength"
+    | "schemaVersion"
+    | "provider"
+    | "model"
+    | "types"
+    | "subjectMaxLength"
+    | "maxDiffBytes"
+    | "maxFileCount"
   >
 > &
   Pick<ConfigFileV1, "scopeMappings"> {
@@ -86,6 +102,8 @@ function buildDefaultConfig(
     model: defaults.modelId,
     types: defaults.allowedTypes,
     subjectMaxLength: defaults.subjectMaxLength,
+    maxDiffBytes: defaults.maxDiffBytes,
+    maxFileCount: defaults.maxFileCount,
     scopeMappings: [],
   };
 }
@@ -254,6 +272,14 @@ async function loadConfigFile(
     if (record.subjectMaxLength !== undefined && !subjectMaxLength) {
       invalidSections.push("subjectMaxLength");
     }
+    const maxDiffBytes = parsePositiveInt(record.maxDiffBytes);
+    if (record.maxDiffBytes !== undefined && !maxDiffBytes) {
+      invalidSections.push("maxDiffBytes");
+    }
+    const maxFileCount = parsePositiveInt(record.maxFileCount);
+    if (record.maxFileCount !== undefined && !maxFileCount) {
+      invalidSections.push("maxFileCount");
+    }
     const scopeMappings = normalizeScopeMappings(record.scopeMappings);
     if (record.scopeMappings !== undefined && !scopeMappings) {
       invalidSections.push("scopeMappings");
@@ -277,6 +303,8 @@ async function loadConfigFile(
         model,
         types,
         subjectMaxLength,
+        maxDiffBytes,
+        maxFileCount,
         scopeMappings,
       },
     };
@@ -432,12 +460,20 @@ export async function resolveCommitConfig(options: {
   const envModel = normalizeString(env[MODEL_ENV]);
   const envTypes = parseTypesFromEnv(env[TYPES_ENV]);
   const envSubjectMaxLength = parsePositiveInt(env[SUBJECT_MAX_ENV]);
+  const envMaxDiffBytes = parsePositiveInt(env[MAX_DIFF_BYTES_ENV]);
+  const envMaxFileCount = parsePositiveInt(env[MAX_FILE_COUNT_ENV]);
 
   if (env[TYPES_ENV] && !envTypes) {
     warnings.push("Ignoring invalid CMT_TYPES; using defaults.");
   }
   if (env[SUBJECT_MAX_ENV] && !envSubjectMaxLength) {
     warnings.push("Ignoring invalid CMT_SUBJECT_MAX_LENGTH; using defaults.");
+  }
+  if (env[MAX_DIFF_BYTES_ENV] && !envMaxDiffBytes) {
+    warnings.push("Ignoring invalid CMT_MAX_DIFF_BYTES; using defaults.");
+  }
+  if (env[MAX_FILE_COUNT_ENV] && !envMaxFileCount) {
+    warnings.push("Ignoring invalid CMT_MAX_FILES; using defaults.");
   }
 
   const flagProvider = normalizeString(flags.providerId);
@@ -446,6 +482,14 @@ export async function resolveCommitConfig(options: {
   const flagSubjectMaxLength =
     typeof flags.subjectMaxLength === "number" && flags.subjectMaxLength > 0
       ? flags.subjectMaxLength
+      : undefined;
+  const flagMaxDiffBytes =
+    typeof flags.maxDiffBytes === "number" && flags.maxDiffBytes > 0
+      ? flags.maxDiffBytes
+      : undefined;
+  const flagMaxFileCount =
+    typeof flags.maxFileCount === "number" && flags.maxFileCount > 0
+      ? flags.maxFileCount
       : undefined;
 
   if (flags.types && !flagTypes) {
@@ -488,6 +532,24 @@ export async function resolveCommitConfig(options: {
   });
   warnForOverrides(warnings, "subject length", subjectResolution.ignored);
 
+  const maxDiffBytesResolution = resolveWithPrecedence({
+    flag: flagMaxDiffBytes,
+    env: envMaxDiffBytes,
+    config: config.maxDiffBytes,
+    globalConfig: globalConfig.maxDiffBytes,
+    fallback: options.defaults.maxDiffBytes,
+  });
+  warnForOverrides(warnings, "max diff bytes", maxDiffBytesResolution.ignored);
+
+  const maxFileCountResolution = resolveWithPrecedence({
+    flag: flagMaxFileCount,
+    env: envMaxFileCount,
+    config: config.maxFileCount,
+    globalConfig: globalConfig.maxFileCount,
+    fallback: options.defaults.maxFileCount,
+  });
+  warnForOverrides(warnings, "max files", maxFileCountResolution.ignored);
+
   if (subjectResolution.value < 20 || subjectResolution.value > 120) {
     warnings.push(
       `Subject length ${subjectResolution.value} may be hard to read; consider 50-72.`,
@@ -518,6 +580,8 @@ export async function resolveCommitConfig(options: {
       modelId: modelResolution.value,
       allowedTypes: typesResolution.value,
       subjectMaxLength: subjectResolution.value,
+      maxDiffBytes: maxDiffBytesResolution.value,
+      maxFileCount: maxFileCountResolution.value,
       scopeMappings,
     },
     sources: {
@@ -525,6 +589,8 @@ export async function resolveCommitConfig(options: {
       modelId: modelResolution.source,
       allowedTypes: typesResolution.source,
       subjectMaxLength: subjectResolution.source,
+      maxDiffBytes: maxDiffBytesResolution.source,
+      maxFileCount: maxFileCountResolution.source,
       scopeMappings: scopeSource,
     },
     configPath,

@@ -6,10 +6,7 @@ import {
   runModelsCommand,
   runProvidersCommand,
 } from "../cli-shell/listCommand.js";
-import {
-  ensureGlobalConfig,
-  resolveDiffLimits,
-} from "../config-policy/index.js";
+import { DEFAULT_LIMITS, ensureGlobalConfig } from "../config-policy/index.js";
 import { DEFAULT_COMMIT_TYPES } from "../message-engine/index.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../provider-auth/index.js";
 
@@ -45,7 +42,9 @@ async function main(): Promise<void> {
       providerId: DEFAULT_PROVIDER,
       modelId: DEFAULT_MODEL,
       allowedTypes: DEFAULT_COMMIT_TYPES,
-      subjectMaxLength: resolveDiffLimits(process.env).limits.subjectMaxLength,
+      subjectMaxLength: DEFAULT_LIMITS.subjectMaxLength,
+      maxDiffBytes: DEFAULT_LIMITS.maxDiffBytes,
+      maxFileCount: DEFAULT_LIMITS.maxFileCount,
     },
   });
   const args = process.argv.slice(2);
