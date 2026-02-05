@@ -44,3 +44,5 @@ for provider in "${providers[@]}"; do
 		bun run start models --provider "$provider" --markdown
 	} >>"$OUTPUT_FILE"
 done
+
+bunx prettier -w "**/*.md"

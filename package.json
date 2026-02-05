@@ -1,10 +1,10 @@
 {
   "name": "cmt",
   "version": "0.0.0",
-  "private": true,
+  "private": false,
   "type": "module",
   "bin": {
-    "tool": "dist/cli/index.js"
+    "cmt": "dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

@@ -24,6 +24,27 @@ git add .
 bun run start commit
 ```
 
+## Global install from source (bun)
+
+Use `bun link` to expose the `cmt` binary globally from your working tree.
+
+```bash
+bun install
+bun run build
+bun link
+
+# Verify
+cmt --help
+```
+
+If `cmt` is not found, ensure `~/.bun/bin` is on your PATH.
+
+To remove the global link:
+
+```bash
+bun unlink
+```
+
 ## Commands
 
 ```bash
