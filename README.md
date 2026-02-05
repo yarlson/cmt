@@ -33,6 +33,12 @@ bun run start commit [--dry-run] [--yes] [--edit] [--regen] [--include-unstaged]
 
 # OAuth login
 bun run start auth --provider <id>
+
+# Provider discovery
+bun run start providers [--markdown] [--short]
+
+# Model discovery
+bun run start models [--provider <id>] [--markdown] [--short]
 ```
 
 Common flags:
@@ -80,6 +86,33 @@ Environment variables:
 ## Providers and auth
 
 The model registry ships with a curated list of tool-capable models per provider.
+Full provider and model catalog: `docs/PROVIDERS.md`.
+
+List providers (ids + OAuth support):
+
+```bash
+bun run start providers
+```
+
+List models for a provider:
+
+```bash
+bun run start models --provider anthropic
+```
+
+Markdown output (copy/paste into docs):
+
+```bash
+bun run start providers --markdown
+bun run start models --provider anthropic --markdown
+```
+
+Short output (ids only):
+
+```bash
+bun run start providers --short
+bun run start models --provider anthropic --short
+```
 
 ```bash
 bun run start commit --provider anthropic --model claude-3-5-haiku-20241022

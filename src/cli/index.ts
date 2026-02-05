@@ -3,6 +3,10 @@ import { log } from "@clack/prompts";
 import { runAuthCommand } from "../cli-shell/authCommand.js";
 import { runCommitCommand } from "../cli-shell/commitCommand.js";
 import {
+  runModelsCommand,
+  runProvidersCommand,
+} from "../cli-shell/listCommand.js";
+import {
   ensureGlobalConfig,
   resolveDiffLimits,
 } from "../config-policy/index.js";
@@ -15,6 +19,8 @@ function printUsage(): void {
     "  tool commit [--dry-run] [--yes] [--edit] [--regen] [--include-unstaged] [--provider <id>] [--model <id>] [--types <list>]",
   );
   console.log("  tool auth --provider <id>");
+  console.log("  tool providers [--markdown] [--short]");
+  console.log("  tool models [--provider <id>] [--markdown] [--short]");
 }
 
 function parseTypes(value: string | undefined): string[] | undefined {
@@ -204,6 +210,105 @@ async function main(): Promise<void> {
     }
 
     process.exitCode = await runAuthCommand({ provider });
+    return;
+  }
+
+  if (command === "providers") {
+    const flags = args.slice(1);
+    let markdown = false;
+    let short = false;
+
+    for (let index = 0; index < flags.length; index += 1) {
+      const flag = flags[index];
+      if (flag === "--markdown") {
+        markdown = true;
+        continue;
+      }
+      if (flag === "--short") {
+        short = true;
+        continue;
+      }
+      if (flag === "--help" || flag === "-h") {
+        printUsage();
+        return;
+      }
+
+      console.error(`Unknown flag: ${flag}`);
+      printUsage();
+      process.exitCode = 1;
+      return;
+    }
+
+    if (markdown && short) {
+      console.error("--markdown and --short cannot be used together.");
+      process.exitCode = 1;
+      return;
+    }
+
+    process.exitCode = await runProvidersCommand({
+      format: short ? "short" : markdown ? "markdown" : "table",
+    });
+    return;
+  }
+
+  if (command === "models") {
+    const flags = args.slice(1);
+    let provider: string | undefined;
+    let markdown = false;
+    let short = false;
+
+    for (let index = 0; index < flags.length; index += 1) {
+      const flag = flags[index];
+      if (flag === "--markdown") {
+        markdown = true;
+        continue;
+      }
+      if (flag === "--short") {
+        short = true;
+        continue;
+      }
+      if (flag.startsWith("--provider=")) {
+        provider = flag.slice("--provider=".length).trim();
+        if (!provider) {
+          console.error("--provider requires a value.");
+          printUsage();
+          process.exitCode = 1;
+          return;
+        }
+        continue;
+      }
+      if (flag === "--provider") {
+        provider = flags[index + 1]?.trim();
+        if (!provider) {
+          console.error("--provider requires a value.");
+          printUsage();
+          process.exitCode = 1;
+          return;
+        }
+        index += 1;
+        continue;
+      }
+      if (flag === "--help" || flag === "-h") {
+        printUsage();
+        return;
+      }
+
+      console.error(`Unknown flag: ${flag}`);
+      printUsage();
+      process.exitCode = 1;
+      return;
+    }
+
+    if (markdown && short) {
+      console.error("--markdown and --short cannot be used together.");
+      process.exitCode = 1;
+      return;
+    }
+
+    process.exitCode = await runModelsCommand({
+      provider,
+      format: short ? "short" : markdown ? "markdown" : "table",
+    });
     return;
   }
 
