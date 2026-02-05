@@ -29,13 +29,15 @@ import {
   ProviderAuthError,
 } from "../provider-auth/index.js";
 import { editMessageInEditor } from "./editor.js";
-import { promptConfirm, promptSecret } from "./prompts.js";
+import {
+  promptCommitDecision,
+  promptConfirm,
+  promptSecret,
+} from "./prompts.js";
 import { formatIntroTitle } from "./ui.js";
 
 export interface CommitCommandOptions {
   dryRun: boolean;
-  edit: boolean;
-  regen: boolean;
   includeUnstaged: boolean;
   provider?: string;
   model?: string;
@@ -72,18 +74,8 @@ export async function runCommitCommand(
   const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
   const stderr = { output: process.stderr };
-  const allowEdit = options.edit;
-  const allowRegen = options.regen;
   const includeUnstaged = options.includeUnstaged;
   let stagingAttempted = false;
-
-  if (allowEdit && !process.stdin.isTTY) {
-    log.error(
-      "Non-interactive shell does not support --edit. Set $EDITOR and run interactively.",
-      stderr,
-    );
-    return 1;
-  }
 
   if (!process.stdin.isTTY && !options.yes) {
     log.error("Non-interactive shell requires --yes.", stderr);
@@ -233,70 +225,35 @@ export async function runCommitCommand(
   }
 
   let message = formatCommitMessage(proposal);
-  if (allowEdit) {
-    const editorCommand = env.EDITOR?.trim();
-    if (!editorCommand) {
-      const warning =
-        "$EDITOR is not set. Set EDITOR to use --edit. Continuing without edit.";
-      if (options.yes) {
-        log.info(warning);
-      } else {
-        const continueWithoutEdit = await promptConfirm(
-          "$EDITOR is not set. Set EDITOR to use --edit. Continue without edit?",
-        );
-        if (!continueWithoutEdit) {
-          cancel("Cancelled.");
-          return 0;
-        }
-      }
-    } else {
-      const editResult = await editMessageInEditor(message, editorCommand);
-      if (editResult.status === "edited" && editResult.message) {
-        message = editResult.message;
-      } else if (editResult.status === "empty") {
-        log.info("Edited message is empty. Keeping previous message.");
-      } else {
-        const exitCode = editResult.exitCode ?? "unknown";
-        log.info(
-          `Editor exited with code ${exitCode}. Keeping previous message.`,
-        );
-      }
-    }
-  }
-
-  if (allowRegen) {
-    const regenSpinner = spinner();
-    regenSpinner.start("Regenerating commit message");
-    try {
-      const regenerated = await generateCommitProposal(
-        {
-          diff,
-          allowedTypes,
-          subjectMaxLength,
-        },
-        providerContext.provider,
-      );
-      if (mappedScope) {
-        regenerated.scope = mappedScope;
-      }
-      message = formatCommitMessage(regenerated);
-      proposal = regenerated;
-      regenSpinner.stop("Commit message regenerated");
-    } catch (error) {
-      regenSpinner.stop("Regeneration failed");
-      const messageText =
-        error instanceof MessageEngineError ? error.message : "Regen failed.";
-      log.info(`${messageText} Using previous message.`);
-    }
-  }
 
   printPreview(message);
 
   if (!options.yes) {
-    const confirmed = await promptConfirm("Commit with this message?");
-    if (!confirmed) {
+    const decision = await promptCommitDecision("Commit with this message?");
+    if (!decision || decision === "no") {
       cancel("Cancelled.");
       return 0;
+    }
+    if (decision === "edit") {
+      const editorCommand = env.EDITOR?.trim();
+      if (!editorCommand) {
+        log.error(
+          "$EDITOR is not set. Set EDITOR to edit the message.",
+          stderr,
+        );
+        return 1;
+      }
+      const editResult = await editMessageInEditor(message, editorCommand);
+      if (editResult.status === "edited" && editResult.message) {
+        message = editResult.message;
+      } else if (editResult.status === "empty") {
+        log.info("Edited message is empty. Cancelled.");
+        return 0;
+      } else {
+        const exitCode = editResult.exitCode ?? "unknown";
+        log.info(`Editor exited with code ${exitCode}. Cancelled.`);
+        return 0;
+      }
     }
   }
 

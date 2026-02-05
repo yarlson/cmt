@@ -49,7 +49,7 @@ bun unlink
 
 ```bash
 # Commit message generation
-cmt commit [--dry-run] [--yes] [--edit] [--regen] [--include-unstaged] \
+cmt commit [--dry-run] [--yes] [--include-unstaged] \
   [--provider <id>] [--model <id>] [--types <list>]
 
 # OAuth login
@@ -68,8 +68,7 @@ Common flags:
 
 - `--include-unstaged` stages tracked unstaged files (untracked files stay uncommitted)
 - `--types` comma-separated list of commit types (overrides defaults)
-- `--edit` opens `$EDITOR` for a final tweak (TTY required)
-- `--regen` regenerates once after the first proposal
+- Interactive prompts offer `yes` / `no` / `edit` (edit opens `$EDITOR` with the draft)
 - `--dry-run` prints the message without committing
 - `--yes` accepts prompts for non-interactive shells
 

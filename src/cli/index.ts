@@ -16,7 +16,7 @@ import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../provider-auth/index.js";
 function printUsage(): void {
   console.log("Usage:");
   console.log(
-    "  tool commit [--dry-run] [--yes] [--edit] [--regen] [--include-unstaged] [--provider <id>] [--model <id>] [--types <list>]",
+    "  tool commit [--dry-run] [--yes] [--include-unstaged] [--provider <id>] [--model <id>] [--types <list>]",
   );
   console.log("  tool auth --provider <id>");
   console.log("  tool providers [--markdown] [--short]");
@@ -59,8 +59,6 @@ async function main(): Promise<void> {
     const flags = args.slice(1);
     let dryRun = false;
     let yes = false;
-    let edit = false;
-    let regen = false;
     let includeUnstaged = false;
     let provider: string | undefined;
     let model: string | undefined;
@@ -74,14 +72,6 @@ async function main(): Promise<void> {
       }
       if (flag === "--yes") {
         yes = true;
-        continue;
-      }
-      if (flag === "--edit") {
-        edit = true;
-        continue;
-      }
-      if (flag === "--regen") {
-        regen = true;
         continue;
       }
       if (flag === "--include-unstaged") {
@@ -160,8 +150,6 @@ async function main(): Promise<void> {
 
     process.exitCode = await runCommitCommand({
       dryRun,
-      edit,
-      regen,
       provider,
       model,
       types,
