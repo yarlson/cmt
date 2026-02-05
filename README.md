@@ -86,7 +86,7 @@ Environment variables:
 ## Providers and auth
 
 The model registry ships with a curated list of tool-capable models per provider.
-Full provider and model catalog: `docs/PROVIDERS.md`.
+Full provider and model catalog: [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 List providers (ids + OAuth support):
 
