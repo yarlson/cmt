@@ -84,7 +84,22 @@ Config format (JSON):
 }
 ```
 
-Scope mappings use the longest matching path prefix to infer the commit scope.
+Fields:
+
+- `schemaVersion`: config schema version (current: `1`). Optional, but if set must be `1`.
+- `provider`: provider id (see `cmt providers`).
+- `model`: model id for the provider (see `cmt models --provider <id>`).
+- `types`: list of allowed commit prefixes (example: `feat`, `fix`). The model
+  must choose one of these; other values are rejected.
+- `subjectMaxLength`: max characters for the subject line (recommended 50-72).
+- `scopeMappings`: optional rules that map file path prefixes to a scope. If a
+  staged file path starts with a prefix, the scope is set (longest prefix wins).
+  Example: `src/cli` → `feat(cli): ...`. Omit if you don't use scopes.
+
+Unknown fields are ignored. Invalid values are skipped with warnings and defaults are used.
+
+Scope mappings use the longest matching path prefix to infer the commit scope
+from staged file paths.
 
 Environment variables:
 
