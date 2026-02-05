@@ -1,6 +1,6 @@
 # cmt
 
-Generate conventional commit messages from your staged Git diff, with provider/model control per run.
+CLI that generates conventional commit messages from staged Git diffs with provider/model control and OAuth/API key auth.
 
 ## What it covers
 
