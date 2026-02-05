@@ -10,6 +10,9 @@
       "recommended": true
     }
   },
+  "files": {
+    "includes": ["src/**", "test/**", "docs/**", "scripts/**", "*.md", "*.json"]
+  },
   "javascript": {
     "formatter": {
       "quoteStyle": "double",

@@ -74,7 +74,7 @@ Config format (JSON):
 {
   "schemaVersion": 1,
   "provider": "anthropic",
-  "model": "claude-3-5-haiku-20241022",
+  "model": "claude-haiku-4-5",
   "types": ["feat", "fix", "docs", "refactor", "test", "perf", "chore"],
   "subjectMaxLength": 72,
   "scopeMappings": [
@@ -140,13 +140,13 @@ cmt models --provider anthropic --short
 ```
 
 ```bash
-cmt commit --provider anthropic --model claude-3-5-haiku-20241022
+cmt commit --provider anthropic --model claude-haiku-4-5
 ```
 
 If a requested model is not found for the provider, the CLI falls back to that provider's first available model and reports the fallback.
 
 **Default provider:** `anthropic`
-**Default model:** `claude-3-5-haiku-20241022`
+**Default model:** `claude-haiku-4-5`
 
 Default commit types: `feat`, `fix`, `docs`, `refactor`, `test`, `perf`, `chore`, `build`, `ci`, `revert`.
 

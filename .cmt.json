@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "provider": "openai-codex",
+  "model": "gpt-5.2-codex",
+  "types": ["feat", "fix", "docs", "refactor", "test", "perf", "chore"],
+  "subjectMaxLength": 72,
+  "scopeMappings": [
+    { "prefix": "src/cli", "scope": "cli" },
+    { "prefix": "src/cli-shell", "scope": "cli" },
+    { "prefix": "src/git-context", "scope": "git" },
+    { "prefix": "src/message-engine", "scope": "engine" },
+    { "prefix": "src/provider-auth", "scope": "auth" },
+    { "prefix": "src/config-policy", "scope": "config" }
+  ]
+}

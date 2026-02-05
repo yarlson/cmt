@@ -8,7 +8,7 @@ import { ProviderAuthError } from "./errors.js";
 import type { CommitMessageProvider } from "./types.js";
 
 const DEFAULT_PROVIDER_ID = "anthropic";
-const DEFAULT_MODEL_ID = "claude-3-5-haiku-20241022";
+const DEFAULT_MODEL_ID = "claude-haiku-4-5";
 const VERIFY_TIMEOUT_MS = 15000;
 const PROMPT_TIMEOUT_MS = 45000;
 
