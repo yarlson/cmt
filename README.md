@@ -1,14 +1,14 @@
-
 # cmt
 
-CLI that generates commit messages from staged Git changes using configurable LLM providers and models.
+Generate conventional commit messages from your staged Git diff, with provider/model control per run.
 
-## Scope
+## What it covers
 
-- Analyzes staged (and optionally unstaged) changes to propose a conventional commit message
-- Supports provider/model selection per run
-- Auth via OAuth (subscription plans) or API keys
-- Works with Git in your current repo
+- Reads staged changes and proposes a conventional commit message
+- Optional auto-stage of tracked unstaged files
+- Configurable commit types, subject length, and scope mappings
+- OAuth (subscription plans) or API keys for auth
+- Multi-provider switching with model fallback
 
 ## Quickstart
 
@@ -24,9 +24,62 @@ git add .
 bun run start commit
 ```
 
-## Providers and models
+## Commands
 
-The model registry ships with a curated list of tool-capable models per provider. You can pick a provider and model at runtime:
+```bash
+# Commit message generation
+bun run start commit [--dry-run] [--yes] [--edit] [--regen] [--include-unstaged] \
+  [--provider <id>] [--model <id>] [--types <list>]
+
+# OAuth login
+bun run start auth --provider <id>
+```
+
+Common flags:
+
+- `--include-unstaged` stages tracked unstaged files (untracked files stay uncommitted)
+- `--types` comma-separated list of commit types (overrides defaults)
+- `--edit` opens `$EDITOR` for a final tweak (TTY required)
+- `--regen` regenerates once after the first proposal
+- `--dry-run` prints the message without committing
+- `--yes` accepts prompts for non-interactive shells
+
+## Configuration
+
+Global config: `~/.config/cmt/config.json` (created on first run with defaults; edit manually).
+Local config: `.cmt.json` in the repo root (override with `CMT_CONFIG_PATH`).
+
+Resolution order: flags → env → local config → global config → defaults.
+Most users keep settings in the global config and update it directly.
+
+Config format (JSON):
+
+```json
+{
+  "schemaVersion": 1,
+  "provider": "anthropic",
+  "model": "claude-3-5-haiku-20241022",
+  "types": ["feat", "fix", "docs", "refactor", "test", "perf", "chore"],
+  "subjectMaxLength": 72,
+  "scopeMappings": [
+    { "prefix": "src/cli", "scope": "cli" },
+    { "prefix": "src/message-engine", "scope": "engine" }
+  ]
+}
+```
+
+Scope mappings use the longest matching path prefix to infer the commit scope.
+
+Environment variables:
+
+- `CMT_PROVIDER`, `CMT_MODEL`, `CMT_TYPES`, `CMT_SUBJECT_MAX_LENGTH`
+- `CMT_MAX_DIFF_BYTES`, `CMT_MAX_FILES` (diff bounds)
+- `CMT_AUTH_PATH` (override auth storage path)
+- `PI_API_KEY` (API key injection at runtime)
+
+## Providers and auth
+
+The model registry ships with a curated list of tool-capable models per provider.
 
 ```bash
 bun run start commit --provider anthropic --model claude-3-5-haiku-20241022
@@ -37,9 +90,9 @@ If a requested model is not found for the provider, the CLI falls back to that p
 **Default provider:** `anthropic`
 **Default model:** `claude-3-5-haiku-20241022`
 
-### OAuth (subscription plans)
+Default commit types: `feat`, `fix`, `docs`, `refactor`, `test`, `perf`, `chore`, `build`, `ci`, `revert`.
 
-Use OAuth to sign in with an existing subscription plan. Supported providers include:
+### OAuth (subscription plans)
 
 - Anthropic Claude Pro/Max
 - OpenAI ChatGPT Plus/Pro (Codex)
@@ -48,8 +101,6 @@ Use OAuth to sign in with an existing subscription plan. Supported providers inc
 - Google Antigravity
 
 ### API keys
-
-Use API keys for providers that support direct key auth. Supported providers include:
 
 - Anthropic
 - OpenAI
@@ -68,31 +119,6 @@ Use API keys for providers that support direct key auth. Supported providers inc
 - Hugging Face
 - Kimi For Coding
 - MiniMax
-
-## Multi-provider advantage
-
-- Keep one workflow across providers and plans
-- Switch models per task (latency, cost, or quality tradeoffs)
-- Avoid lock-in when a provider rate-limits or changes pricing
-- Use subscriptions for interactive work and API keys for automation
-
-## Commands
-
-```bash
-# Commit message generation
-bun run start commit [--dry-run] [--yes] [--edit] [--regen] [--include-unstaged] [--provider <id>] [--model <id>] [--types <list>]
-
-# OAuth login
-bun run start auth --provider <id>
-```
-
-## Configuration
-
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `PI_API_KEY` | Runtime API key for the selected provider | none |
-| `CMT_AUTH_PATH` | Auth storage path | `~/.config/cmt/auth.json` |
-| `CMT_PROVIDER_MODE` | Set to `mock` for tests | unset |
 
 ## Notes
 

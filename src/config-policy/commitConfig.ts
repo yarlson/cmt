@@ -1,7 +1,13 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
-export type ConfigSource = "flag" | "env" | "config" | "default";
+export type ConfigSource =
+  | "flag"
+  | "env"
+  | "config"
+  | "globalConfig"
+  | "default";
 
 export interface ScopeMapping {
   prefix: string;
@@ -48,6 +54,12 @@ const MODEL_ENV = "CMT_MODEL";
 const TYPES_ENV = "CMT_TYPES";
 const SUBJECT_MAX_ENV = "CMT_SUBJECT_MAX_LENGTH";
 const DEFAULT_CONFIG_FILE = ".cmt.json";
+const GLOBAL_CONFIG_FILE = path.join(
+  os.homedir(),
+  ".config",
+  "cmt",
+  "config.json",
+);
 const SUPPORTED_SCHEMA_VERSION = 1;
 
 interface ConfigFileV1 {
@@ -57,6 +69,25 @@ interface ConfigFileV1 {
   types?: string[];
   subjectMaxLength?: number;
   scopeMappings?: ScopeMapping[];
+}
+
+function buildDefaultConfig(
+  defaults: CommitConfigDefaults,
+): Required<
+  Pick<
+    ConfigFileV1,
+    "schemaVersion" | "provider" | "model" | "types" | "subjectMaxLength"
+  >
+> &
+  Pick<ConfigFileV1, "scopeMappings"> {
+  return {
+    schemaVersion: SUPPORTED_SCHEMA_VERSION,
+    provider: defaults.providerId,
+    model: defaults.modelId,
+    types: defaults.allowedTypes,
+    subjectMaxLength: defaults.subjectMaxLength,
+    scopeMappings: [],
+  };
 }
 
 interface ConfigLoadResult {
@@ -160,8 +191,13 @@ function containsSecretKeys(value: unknown): boolean {
   return false;
 }
 
-async function loadConfigFile(configPath: string): Promise<ConfigLoadResult> {
+async function loadConfigFile(
+  configPath: string,
+  label: string,
+  options?: { warnOnMissing?: boolean },
+): Promise<ConfigLoadResult> {
   const warnings: string[] = [];
+  const warnOnMissing = options?.warnOnMissing ?? true;
   try {
     const raw = await fs.readFile(configPath, "utf8");
     let parsed: unknown;
@@ -172,7 +208,7 @@ async function loadConfigFile(configPath: string): Promise<ConfigLoadResult> {
         found: true,
         invalid: true,
         invalidSections: ["schema"],
-        warnings: ["Config file is not valid JSON; using defaults."],
+        warnings: [`${label} is not valid JSON; using defaults.`],
         hasSecrets: false,
       };
     }
@@ -182,7 +218,7 @@ async function loadConfigFile(configPath: string): Promise<ConfigLoadResult> {
         found: true,
         invalid: true,
         invalidSections: ["schema"],
-        warnings: ["Config file has invalid schema; using defaults."],
+        warnings: [`${label} has invalid schema; using defaults.`],
         hasSecrets: false,
       };
     }
@@ -195,7 +231,7 @@ async function loadConfigFile(configPath: string): Promise<ConfigLoadResult> {
         invalid: true,
         invalidSections: ["schemaVersion"],
         warnings: [
-          `Unsupported config schema version ${schemaVersion}; using defaults.`,
+          `Unsupported ${label} schema version ${schemaVersion}; using defaults.`,
         ],
         hasSecrets: containsSecretKeys(record),
       };
@@ -252,7 +288,9 @@ async function loadConfigFile(configPath: string): Promise<ConfigLoadResult> {
           found: false,
           invalid: false,
           invalidSections: [],
-          warnings: ["Config file not found; using defaults."],
+          warnings: warnOnMissing
+            ? [`${label} not found; using defaults.`]
+            : [],
           hasSecrets: false,
         };
       }
@@ -262,16 +300,48 @@ async function loadConfigFile(configPath: string): Promise<ConfigLoadResult> {
       found: false,
       invalid: true,
       invalidSections: ["read"],
-      warnings: ["Config file could not be read; using defaults."],
+      warnings: [`${label} could not be read; using defaults.`],
       hasSecrets: false,
     };
   }
+}
+
+async function ensureGlobalConfigFile(
+  configPath: string,
+  defaults: CommitConfigDefaults,
+  warnings: string[],
+): Promise<void> {
+  const payload = JSON.stringify(buildDefaultConfig(defaults), null, 2);
+  try {
+    await fs.mkdir(path.dirname(configPath), { recursive: true });
+    await fs.writeFile(configPath, `${payload}\n`, {
+      encoding: "utf8",
+      flag: "wx",
+    });
+  } catch (error) {
+    if (error instanceof Error && "code" in error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "EEXIST") {
+        return;
+      }
+    }
+    warnings.push("Global config file could not be created; using defaults.");
+  }
+}
+
+export async function ensureGlobalConfig(options: {
+  defaults: CommitConfigDefaults;
+  warnings?: string[];
+}): Promise<void> {
+  const warnings = options.warnings ?? [];
+  await ensureGlobalConfigFile(GLOBAL_CONFIG_FILE, options.defaults, warnings);
 }
 
 function resolveWithPrecedence<T>(options: {
   flag?: T;
   env?: T;
   config?: T;
+  globalConfig?: T;
   fallback: T;
 }): { value: T; source: ConfigSource; ignored: ConfigSource[] } {
   if (options.flag !== undefined) {
@@ -282,6 +352,9 @@ function resolveWithPrecedence<T>(options: {
     if (options.config !== undefined) {
       ignored.push("config");
     }
+    if (options.globalConfig !== undefined) {
+      ignored.push("globalConfig");
+    }
     return { value: options.flag, source: "flag", ignored };
   }
   if (options.env !== undefined) {
@@ -289,12 +362,26 @@ function resolveWithPrecedence<T>(options: {
     if (options.config !== undefined) {
       ignored.push("config");
     }
+    if (options.globalConfig !== undefined) {
+      ignored.push("globalConfig");
+    }
     return { value: options.env, source: "env", ignored };
   }
   if (options.config !== undefined) {
-    return { value: options.config, source: "config", ignored: [] };
+    const ignored: ConfigSource[] = [];
+    if (options.globalConfig !== undefined) {
+      ignored.push("globalConfig");
+    }
+    return { value: options.config, source: "config", ignored };
+  }
+  if (options.globalConfig !== undefined) {
+    return { value: options.globalConfig, source: "globalConfig", ignored: [] };
   }
   return { value: options.fallback, source: "default", ignored: [] };
+}
+
+function formatSource(source: ConfigSource): string {
+  return source === "globalConfig" ? "GLOBAL_CONFIG" : source.toUpperCase();
 }
 
 function warnForOverrides(
@@ -305,7 +392,7 @@ function warnForOverrides(
   if (ignored.length === 0) {
     return;
   }
-  const sources = ignored.map((source) => source.toUpperCase()).join(", ");
+  const sources = ignored.map((source) => formatSource(source)).join(", ");
   warnings.push(`Ignoring ${label} from ${sources} due to higher precedence.`);
 }
 
@@ -316,13 +403,28 @@ export async function resolveCommitConfig(options: {
   defaults: CommitConfigDefaults;
 }): Promise<CommitConfigResolution> {
   const configPath = resolveConfigPath(options.cwd, options.env);
-  const loadResult = await loadConfigFile(configPath);
-  const warnings = [...loadResult.warnings];
+  const globalConfigPath = GLOBAL_CONFIG_FILE;
+  const loadResult = await loadConfigFile(configPath, "Config file");
+  const globalResult = await loadConfigFile(
+    globalConfigPath,
+    "Global config file",
+    { warnOnMissing: false },
+  );
+  const warnings = [...loadResult.warnings, ...globalResult.warnings];
+  if (!globalResult.found && !globalResult.invalid) {
+    await ensureGlobalConfigFile(globalConfigPath, options.defaults, warnings);
+  }
   if (loadResult.hasSecrets) {
     warnings.push("Config file appears to contain secrets; remove them.");
   }
+  if (globalResult.hasSecrets) {
+    warnings.push(
+      "Global config file appears to contain secrets; remove them.",
+    );
+  }
 
   const config = loadResult.config ?? {};
+  const globalConfig = globalResult.config ?? {};
   const env = options.env;
   const flags = options.flags ?? {};
 
@@ -354,6 +456,7 @@ export async function resolveCommitConfig(options: {
     flag: flagProvider,
     env: envProvider,
     config: config.provider,
+    globalConfig: globalConfig.provider,
     fallback: options.defaults.providerId,
   });
   warnForOverrides(warnings, "provider", providerResolution.ignored);
@@ -362,6 +465,7 @@ export async function resolveCommitConfig(options: {
     flag: flagModel,
     env: envModel,
     config: config.model,
+    globalConfig: globalConfig.model,
     fallback: options.defaults.modelId,
   });
   warnForOverrides(warnings, "model", modelResolution.ignored);
@@ -370,6 +474,7 @@ export async function resolveCommitConfig(options: {
     flag: flagTypes,
     env: envTypes,
     config: config.types,
+    globalConfig: globalConfig.types,
     fallback: options.defaults.allowedTypes,
   });
   warnForOverrides(warnings, "types", typesResolution.ignored);
@@ -378,6 +483,7 @@ export async function resolveCommitConfig(options: {
     flag: flagSubjectMaxLength,
     env: envSubjectMaxLength,
     config: config.subjectMaxLength,
+    globalConfig: globalConfig.subjectMaxLength,
     fallback: options.defaults.subjectMaxLength,
   });
   warnForOverrides(warnings, "subject length", subjectResolution.ignored);
@@ -388,14 +494,23 @@ export async function resolveCommitConfig(options: {
     );
   }
 
-  const scopeMappings = config.scopeMappings ?? [];
+  const localScopeMappings = config.scopeMappings ?? [];
+  const globalScopeMappings = globalConfig.scopeMappings ?? [];
+  const scopeMappings =
+    localScopeMappings.length > 0 ? localScopeMappings : globalScopeMappings;
   const scopeSource: ConfigSource =
-    scopeMappings.length > 0 ? "config" : "default";
+    localScopeMappings.length > 0
+      ? "config"
+      : globalScopeMappings.length > 0
+        ? "globalConfig"
+        : "default";
 
   const fallbackUsed =
     !loadResult.found ||
     loadResult.invalid ||
-    loadResult.invalidSections.length > 0;
+    loadResult.invalidSections.length > 0 ||
+    globalResult.invalid ||
+    globalResult.invalidSections.length > 0;
 
   return {
     effective: {

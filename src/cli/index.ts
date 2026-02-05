@@ -2,6 +2,12 @@
 import { log } from "@clack/prompts";
 import { runAuthCommand } from "../cli-shell/authCommand.js";
 import { runCommitCommand } from "../cli-shell/commitCommand.js";
+import {
+  ensureGlobalConfig,
+  resolveDiffLimits,
+} from "../config-policy/index.js";
+import { DEFAULT_COMMIT_TYPES } from "../message-engine/index.js";
+import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../provider-auth/index.js";
 
 function printUsage(): void {
   console.log("Usage:");
@@ -28,6 +34,14 @@ function printError(message: string): void {
 }
 
 async function main(): Promise<void> {
+  await ensureGlobalConfig({
+    defaults: {
+      providerId: DEFAULT_PROVIDER,
+      modelId: DEFAULT_MODEL,
+      allowedTypes: DEFAULT_COMMIT_TYPES,
+      subjectMaxLength: resolveDiffLimits(process.env).limits.subjectMaxLength,
+    },
+  });
   const args = process.argv.slice(2);
   if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
     printUsage();

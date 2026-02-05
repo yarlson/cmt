@@ -4,6 +4,7 @@ export {
   type CommitConfigFlags,
   type CommitConfigResolution,
   type ConfigSource,
+  ensureGlobalConfig,
   resolveCommitConfig,
   resolveScopeFromMappings,
   type ScopeMapping,
