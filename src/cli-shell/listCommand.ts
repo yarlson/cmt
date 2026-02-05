@@ -204,7 +204,7 @@ export async function runModelsCommand(
   if (filtered.length === 0) {
     if (providerFilter) {
       console.error(`Unknown provider or no models found: ${providerFilter}`);
-      console.error("Run: tool providers");
+      console.error("Run: cmt providers");
       return 1;
     }
     console.error("No models available.");

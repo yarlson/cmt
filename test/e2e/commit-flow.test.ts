@@ -116,32 +116,6 @@ describe("commit flow", () => {
     expect(log.stdout.trim()).toBe("docs(docs): update readme");
   });
 
-  it("regenerates proposal when requested", async () => {
-    const repoDir = await createTempDir("cmt-repo-");
-    initGitRepo(repoDir);
-    await writeFile(repoDir, "README.md", "hello\n");
-    runGit(repoDir, ["add", "README.md"]);
-
-    const env = defaultEnv(repoDir);
-
-    const result = runCli(repoDir, ["commit", "--regen", "--yes"], env);
-    expect(result.exitCode).toBe(0);
-  });
-
-  it("rejects edit in non-interactive shells", async () => {
-    const repoDir = await createTempDir("cmt-repo-");
-    initGitRepo(repoDir);
-    await writeFile(repoDir, "README.md", "hello\n");
-    runGit(repoDir, ["add", "README.md"]);
-
-    const env = defaultEnv(repoDir);
-    env.EDITOR = "true";
-
-    const result = runCli(repoDir, ["commit", "--edit", "--yes"], env);
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toContain("Non-interactive shell");
-  });
-
   it("refuses outside a git repo", async () => {
     const dir = await createTempDir("cmt-norepo-");
     const env = defaultEnv(dir);

@@ -1,32 +1,24 @@
-# cmt (TypeScript)
+# cmt
 
-## Tooling
+CLI that generates conventional commit messages from staged git diffs using
+configurable model providers.
 
-- Runtime: Node.js 24+
+## Essentials
+
 - Package manager: bun
-- TypeScript: 5.9 (NodeNext, ES2022)
-- Key dependency: `@mariozechner/pi-coding-agent`[docs](../turbo/lgtm_ts/docs)
-
-## Commands
+- Build/typecheck: `bun run build` (tsc)
 
 ```bash
 bun install
-bun run build       # tsc
-bun run start       # bun dist/cli/index.js
+bun run build
+bun run start
 bun test
-bun run lint:fix    # biome check
-bun test:e2e        # e2e tests, run them from time to time, and before you say the task has been done
+bun run lint:fix
+bun test:e2e
 ```
-
-## Done means validated
-
-Do **not** report a task as “done” until:
-
-- relevant tests are added/updated **and** `bun test` has been run successfully
-- `bun run lint:fix` has been run successfully
 
 ## More guidance (progressive disclosure)
 
 - TypeScript conventions: `docs/TYPESCRIPT.md`
-- Testing strategy & E2E rules: `docs/TESTING.md`
-- Architecture notes (when present): `docs/ARCHITECTURE.md`
+- Testing + quality gates: `docs/TESTING.md`
+- Architecture notes: `docs/ARCHITECTURE.md`

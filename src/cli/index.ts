@@ -16,11 +16,11 @@ import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../provider-auth/index.js";
 function printUsage(): void {
   console.log("Usage:");
   console.log(
-    "  tool commit [--dry-run] [--yes] [--include-unstaged] [--provider <id>] [--model <id>] [--types <list>]",
+    "  cmt commit [--dry-run] [--yes] [--include-unstaged] [--provider <id>] [--model <id>] [--types <list>]",
   );
-  console.log("  tool auth --provider <id>");
-  console.log("  tool providers [--markdown] [--short]");
-  console.log("  tool models [--provider <id>] [--markdown] [--short]");
+  console.log("  cmt auth --provider <id>");
+  console.log("  cmt providers [--markdown] [--short]");
+  console.log("  cmt models [--provider <id>] [--markdown] [--short]");
 }
 
 function parseTypes(value: string | undefined): string[] | undefined {
