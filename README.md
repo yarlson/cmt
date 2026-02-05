@@ -15,6 +15,7 @@ Generate conventional commit messages from your staged Git diff, with provider/m
 ```bash
 bun install
 bun run build
+bun link
 
 # OAuth login (subscription-based providers)
 cmt auth --provider anthropic
@@ -22,19 +23,6 @@ cmt auth --provider anthropic
 # Generate commit message
 git add .
 cmt commit
-```
-
-## Global install from source (bun)
-
-Use `bun link` to expose the `cmt` binary globally from your working tree.
-
-```bash
-bun install
-bun run build
-bun link
-
-# Verify
-cmt --help
 ```
 
 If `cmt` is not found, ensure `~/.bun/bin` is on your PATH.
