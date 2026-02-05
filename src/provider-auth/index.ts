@@ -1,5 +1,7 @@
 import { createAuthStorage, resolveApiKey } from "./authStorage.js";
+import { ProviderAuthError } from "./errors.js";
 import { createMockProvider } from "./mockProvider.js";
+import { listOAuthProviders } from "./oauth.js";
 import {
   createPiAgentProvider,
   DEFAULT_MODEL,
@@ -29,12 +31,6 @@ export async function createProviderAuthContext(
   const providerId = options.providerId ?? DEFAULT_PROVIDER;
   const requestedModelId = options.modelId;
 
-  await resolveApiKey(authStorage, {
-    providerId,
-    promptForKey: options.promptForKey,
-    env,
-  });
-
   if (env.CMT_PROVIDER_MODE === "mock" || providerId === "mock") {
     return {
       provider: createMockProvider(env),
@@ -42,6 +38,28 @@ export async function createProviderAuthContext(
       modelId: requestedModelId ?? DEFAULT_MODEL,
       modelFallbackUsed: false,
     };
+  }
+
+  const oauthProviders = listOAuthProviders(env);
+  const isOAuthProvider = oauthProviders.some(
+    (provider) => provider.id === providerId,
+  );
+  const hasStoredAuth = authStorage.has(providerId);
+  const hasEnvKey = Boolean(env.PI_API_KEY?.trim());
+
+  if (isOAuthProvider && !hasStoredAuth && !hasEnvKey) {
+    throw new ProviderAuthError(
+      `OAuth required for ${providerId}. Run: cmt auth --provider ${providerId}`,
+      "api_key_required",
+    );
+  }
+
+  if (!isOAuthProvider || hasEnvKey || !hasStoredAuth) {
+    await resolveApiKey(authStorage, {
+      providerId,
+      promptForKey: options.promptForKey,
+      env,
+    });
   }
 
   const selection = createPiAgentProvider(

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "provider": "google-gemini-cl",
+  "provider": "google-gemini-cli",
   "model": "gemini-3-flash-preview",
   "types": ["feat", "fix", "docs", "refactor", "test", "perf", "chore"],
   "subjectMaxLength": 72,
