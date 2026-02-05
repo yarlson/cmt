@@ -114,31 +114,31 @@ Full provider and model catalog: [docs/PROVIDERS.md](docs/PROVIDERS.md).
 List providers (ids + OAuth support):
 
 ```bash
-bun run start providers
+cmt providers
 ```
 
 List models for a provider:
 
 ```bash
-bun run start models --provider anthropic
+cmt models --provider anthropic
 ```
 
 Markdown output (copy/paste into docs):
 
 ```bash
-bun run start providers --markdown
-bun run start models --provider anthropic --markdown
+cmt providers --markdown
+cmt models --provider anthropic --markdown
 ```
 
 Short output (ids only):
 
 ```bash
-bun run start providers --short
-bun run start models --provider anthropic --short
+cmt providers --short
+cmt models --provider anthropic --short
 ```
 
 ```bash
-bun run start commit --provider anthropic --model claude-3-5-haiku-20241022
+cmt commit --provider anthropic --model claude-3-5-haiku-20241022
 ```
 
 If a requested model is not found for the provider, the CLI falls back to that provider's first available model and reports the fallback.
@@ -148,35 +148,8 @@ If a requested model is not found for the provider, the CLI falls back to that p
 
 Default commit types: `feat`, `fix`, `docs`, `refactor`, `test`, `perf`, `chore`, `build`, `ci`, `revert`.
 
-### OAuth (subscription plans)
+### Auth
 
-- Anthropic Claude Pro/Max
-- OpenAI ChatGPT Plus/Pro (Codex)
-- GitHub Copilot
-- Google Gemini CLI
-- Google Antigravity
-
-### API keys
-
-- Anthropic
-- OpenAI
-- Azure OpenAI
-- Google Gemini
-- Google Vertex
-- Amazon Bedrock
-- Mistral
-- Groq
-- Cerebras
-- xAI
-- OpenRouter
-- Vercel AI Gateway
-- ZAI
-- OpenCode Zen
-- Hugging Face
-- Kimi For Coding
-- MiniMax
-
-## Notes
-
-- OAuth tokens and API keys are stored in the auth file unless provided at runtime.
-- Provider lists and model catalogs are bundled with releases and updated by dependency upgrades.
+- OAuth and API keys are supported; see `docs/PROVIDERS.md` for coverage.
+- Use `cmt providers` / `cmt models` to validate what is bundled in your build.
+- Tokens and keys are stored in the auth file unless provided at runtime.
