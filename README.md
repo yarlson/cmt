@@ -17,11 +17,11 @@ bun install
 bun run build
 
 # OAuth login (subscription-based providers)
-bun run start auth --provider anthropic
+cmt auth --provider anthropic
 
 # Generate commit message
 git add .
-bun run start commit
+cmt commit
 ```
 
 ## Global install from source (bun)
@@ -49,18 +49,20 @@ bun unlink
 
 ```bash
 # Commit message generation
-bun run start commit [--dry-run] [--yes] [--edit] [--regen] [--include-unstaged] \
+cmt commit [--dry-run] [--yes] [--edit] [--regen] [--include-unstaged] \
   [--provider <id>] [--model <id>] [--types <list>]
 
 # OAuth login
-bun run start auth --provider <id>
+cmt auth --provider <id>
 
 # Provider discovery
-bun run start providers [--markdown] [--short]
+cmt providers [--markdown] [--short]
 
 # Model discovery
-bun run start models [--provider <id>] [--markdown] [--short]
+cmt models [--provider <id>] [--markdown] [--short]
 ```
+
+If you have not linked the binary, use `bun run start` instead of `cmt`.
 
 Common flags:
 
