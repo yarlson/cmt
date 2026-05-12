@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"gic/internal/app"
-	"gic/internal/commit"
-	"gic/internal/git"
+	"cmt/internal/app"
+	"cmt/internal/commit"
+	"cmt/internal/git"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

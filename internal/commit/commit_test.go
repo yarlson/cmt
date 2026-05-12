@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"gic/internal/commit"
+	"cmt/internal/commit"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

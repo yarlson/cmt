@@ -1,4 +1,4 @@
-module gic
+module cmt
 
 go 1.25.0
 

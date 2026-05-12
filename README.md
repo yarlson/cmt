@@ -1,6 +1,6 @@
-# gic
+# cmt
 
-`gic` generates git commit messages with Claude Code for the repository you are
+`cmt` generates git commit messages with Claude Code for the repository you are
 currently in, then lets you review and create the commit.
 
 It is built for developers who want faster commits without losing intent:
@@ -12,88 +12,88 @@ It is built for developers who want faster commits without losing intent:
 
 ## Status
 
-Active. `gic` currently ships as an interactive CLI for local git repositories.
+Active. `cmt` currently ships as an interactive CLI for local git repositories.
 
 ## Requirements
 
 - `git`
-- A git repository with changes to commit
+- a git repository with changes to commit
 - Claude Code CLI (`claude`) installed and authenticated
 
-`gic` shells out to the `claude` CLI. Install Claude Code from
+`cmt` shells out to the `claude` CLI. Install Claude Code from
 [claude.ai/code](https://claude.ai/code) and make sure `claude` works in your
-shell before using `gic`.
+shell before using `cmt`.
 
 ## Install
 
 ### Quick install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/yarlson/gic/master/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/yarlson/cmt/master/install.sh | bash
 ```
 
-The installer detects your OS and architecture and installs `gic` to
+The installer detects your OS and architecture and installs `cmt` to
 `/usr/local/bin`.
 
 Install a specific version:
 
 ```bash
-gic_VERSION=v0.2.0 curl -sSL https://raw.githubusercontent.com/yarlson/gic/master/install.sh | bash
+cmt_VERSION=v0.2.0 curl -sSL https://raw.githubusercontent.com/yarlson/cmt/master/install.sh | bash
 ```
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/yarlson/gic/master/install.sh | bash -s v0.2.0
+curl -sSL https://raw.githubusercontent.com/yarlson/cmt/master/install.sh | bash -s v0.2.0
 ```
 
 ### Homebrew
 
 ```bash
-brew tap yarlson/gic
-brew install gic
+brew tap yarlson/homebrew-tap
+brew install cmt
 ```
 
 ### Build from source
 
-Requires Go 1.24 or newer.
+Requires Go 1.25 or newer.
 
 ```bash
-git clone https://github.com/yarlson/gic.git
-cd gic
+git clone https://github.com/yarlson/cmt.git
+cd cmt
 go build
-sudo mv gic /usr/local/bin/
+sudo mv cmt /usr/local/bin/
 ```
 
 ## Quick start
 
-Run `gic` inside a git repository:
+Run `cmt` inside a git repository:
 
 ```bash
-gic
+cmt
 ```
 
 Add short context when the intent is not obvious from the diff:
 
 ```bash
-gic fix the auth session regression
-gic clarify retry behavior for failed syncs
+cmt fix the auth session regression
+cmt clarify retry behavior for failed syncs
 ```
 
-Skip the confirmation prompt when you want `gic` to commit immediately:
+Skip the confirmation prompt when you want `cmt` to commit immediately:
 
 ```bash
-gic --auto-approve
+cmt --auto-approve
 ```
 
 Show version information:
 
 ```bash
-gic --version
-gic version
+cmt --version
+cmt version
 ```
 
-## What `gic` does
+## What `cmt` does
 
-When you run `gic`, it:
+When you run `cmt`, it:
 
 1. stages changes with `git add .`
 2. reads repository status and recent commits
@@ -103,16 +103,16 @@ When you run `gic`, it:
 
 ## Behavior to know
 
-- `gic` stages all current changes before generating the commit message.
-- Positional arguments after `gic` are forwarded to Claude as additional
+- `cmt` stages all current changes before generating the commit message.
+- Positional arguments after `cmt` are forwarded to Claude as additional
   context.
-- `gic` uses the Claude model and auth already configured in Claude Code.
+- `cmt` uses the Claude model and auth already configured in Claude Code.
 - The generated message is intended to explain why the change was made, not
   just restate the diff.
 
 ## Troubleshooting
 
-If `gic` fails before showing the UI, check these first:
+If `cmt` fails before showing the UI, check these first:
 
 - `claude` is installed and available on `PATH`
 - Claude Code is already authenticated
@@ -121,7 +121,7 @@ If `gic` fails before showing the UI, check these first:
 
 ## Contributing
 
-Use Go 1.24 or newer and run the same checks that CI runs before opening a
+Use Go 1.25 or newer and run the same checks that CI runs before opening a
 change:
 
 ```bash

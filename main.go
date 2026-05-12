@@ -7,9 +7,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"gic/internal/app"
-	"gic/internal/commit"
-	"gic/internal/git"
+	"cmt/internal/app"
+	"cmt/internal/commit"
+	"cmt/internal/git"
 
 	"github.com/spf13/cobra"
 	"github.com/yarlson/tap"
@@ -26,7 +26,7 @@ var (
 	autoApprove bool
 
 	rootCmd = &cobra.Command{
-		Use:           "gic [commit-message]",
+		Use:           "cmt [commit-message]",
 		Short:         "Generate polished git commits with AI assistance",
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -69,7 +69,7 @@ func init() {
 }
 
 func printVersion() {
-	tap.Intro("📦 gic")
+	tap.Intro("📦 cmt")
 
 	tap.Box(
 		fmt.Sprintf("Version:    %s\nBuilt:      %s", version, buildTime),
@@ -85,7 +85,7 @@ func printVersion() {
 		},
 	)
 
-	tap.Outro("Run `gic` without flags to launch the assistant ✨")
+	tap.Outro("Run `cmt` without flags to launch the assistant ✨")
 }
 
 func run(ctx context.Context, userInput string) error {

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# gic installer script
-# Downloads and installs the latest release of gic
+# cmt installer script
+# Downloads and installs the latest release of cmt
 
 set -e
 
@@ -13,9 +13,9 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # GitHub repository
-REPO="yarlson/gic"
+REPO="yarlson/cmt"
 INSTALL_DIR="/usr/local/bin"
-BINARY_NAME="gic"
+BINARY_NAME="cmt"
 
 # Detect OS and architecture
 detect_platform() {
@@ -70,8 +70,8 @@ get_latest_version() {
 # Get version to install
 get_version() {
     # Allow override via environment variable
-    if [ -n "$gic_VERSION" ]; then
-        echo "$gic_VERSION"
+    if [ -n "$cmt_VERSION" ]; then
+        echo "$cmt_VERSION"
     elif [ -n "$1" ]; then
         echo "$1"
     else
@@ -80,10 +80,10 @@ get_version() {
 }
 
 # Download and install
-install_gic() {
+install_cmt() {
     local platform version
 
-    echo -e "${BLUE}🔗 Installing gic...${NC}"
+    echo -e "${BLUE}🔗 Installing cmt...${NC}"
 
     platform=$(detect_platform)
     version=$(get_version "$1")
@@ -92,7 +92,7 @@ install_gic() {
     echo -e "${BLUE}Platform: ${platform}${NC}"
 
     # Download URL
-    local filename="gic_${platform}.tar.gz"
+    local filename="cmt_${platform}.tar.gz"
     local url="https://github.com/${REPO}/releases/download/${version}/${filename}"
 
     echo -e "${BLUE}Downloading ${url}...${NC}"
@@ -137,23 +137,23 @@ install_gic() {
     cd - > /dev/null
     rm -rf "$tmp_dir"
 
-    echo -e "${GREEN}✅ gic installed successfully!${NC}"
-    echo -e "${GREEN}Run 'gic --help' to get started.${NC}"
+    echo -e "${GREEN}✅ cmt installed successfully!${NC}"
+    echo -e "${GREEN}Run 'cmt --help' to get started.${NC}"
 
     # Test the installation
-    if command -v gic >/dev/null 2>&1; then
-        echo -e "${GREEN}Installed version: $(gic --version)${NC}"
+    if command -v cmt >/dev/null 2>&1; then
+        echo -e "${GREEN}Installed version: $(cmt --version)${NC}"
     fi
 }
 
 # Check if running with --help
 if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-    echo "gic installer script"
+    echo "cmt installer script"
     echo ""
     echo "Usage:"
-    echo "  curl -sSL https://raw.githubusercontent.com/yarlson/gic/master/install.sh | bash"
-    echo "  curl -sSL https://raw.githubusercontent.com/yarlson/gic/master/install.sh | bash -s v0.0.1"
-    echo "  gic_VERSION=v0.0.1 curl -sSL https://raw.githubusercontent.com/yarlson/gic/master/install.sh | bash"
+    echo "  curl -sSL https://raw.githubusercontent.com/yarlson/cmt/master/install.sh | bash"
+    echo "  curl -sSL https://raw.githubusercontent.com/yarlson/cmt/master/install.sh | bash -s v0.0.1"
+    echo "  cmt_VERSION=v0.0.1 curl -sSL https://raw.githubusercontent.com/yarlson/cmt/master/install.sh | bash"
     echo ""
     echo "This script will:"
     echo "  1. Detect your OS and architecture"
@@ -161,11 +161,11 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo "  3. Download and install to /usr/local/bin (requires sudo)"
     echo ""
     echo "Environment variables:"
-    echo "  gic_VERSION - Specify version to install (e.g., v0.0.1)"
+    echo "  cmt_VERSION - Specify version to install (e.g., v0.0.1)"
     echo ""
-    echo "Manual installation: https://github.com/yarlson/gic/releases"
+    echo "Manual installation: https://github.com/yarlson/cmt/releases"
     exit 0
 fi
 
 # Run the installer
-install_gic "$1"
+install_cmt "$1"

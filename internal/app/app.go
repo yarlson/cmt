@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"gic/internal/commit"
-	"gic/internal/git"
+	"cmt/internal/commit"
+	"cmt/internal/git"
 
 	"github.com/yarlson/tap"
 )

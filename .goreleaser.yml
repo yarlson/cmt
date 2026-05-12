@@ -1,7 +1,7 @@
-# GoReleaser configuration for gic
+# GoReleaser configuration for cmt
 version: 2
 
-project_name: gic
+project_name: cmt
 
 before:
   hooks:
@@ -29,7 +29,7 @@ builds:
       - -X main.version={{.Version}}
       - -X main.buildTime={{.Date}}
     main: ./main.go
-    binary: gic
+    binary: cmt
 
 archives:
   - id: default
@@ -79,12 +79,12 @@ changelog:
 release:
   github:
     owner: yarlson
-    name: gic
+    name: cmt
   draft: false
   prerelease: auto
   mode: replace
   header: |
-    ## gic {{.Tag}}
+    ## cmt {{.Tag}}
 
     Generate meaningful git commit messages with Claude Code.
 
@@ -92,30 +92,30 @@ release:
 
     ```bash
     # Quick install
-    curl -sSL https://raw.githubusercontent.com/yarlson/gic/master/install.sh | bash
+    curl -sSL https://raw.githubusercontent.com/yarlson/cmt/master/install.sh | bash
 
     # Homebrew
-    brew tap yarlson/gic
-    brew install gic
+    brew tap yarlson/homebrew-tap
+    brew install cmt
 
     # Manual download
     # Download the appropriate archive for your platform from the assets below
     # Extract and move to your PATH:
-    # tar -xzf gic_*.tar.gz && sudo mv gic /usr/local/bin/
+    # tar -xzf cmt_*.tar.gz && sudo mv cmt /usr/local/bin/
     ```
 
   footer: |
     ---
-    **Full Changelog**: https://github.com/yarlson/gic/compare/{{.PreviousTag}}...{{.Tag}}
+    **Full Changelog**: https://github.com/yarlson/cmt/compare/{{.PreviousTag}}...{{.Tag}}
 
 # Homebrew tap
 brews:
   - repository:
       owner: yarlson
-      name: homebrew-gic
+      name: homebrew-tap
       branch: main
       token: "{{ .Env.GITHUB_TOKEN }}"
-    homepage: "https://github.com/yarlson/gic"
+    homepage: "https://github.com/yarlson/cmt"
     description: "Generate meaningful git commit messages with Claude Code"
     license: "MIT"
     skip_upload: auto
@@ -124,16 +124,16 @@ brews:
       email: bot@goreleaser.com
     commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
     test: |
-      system "#{bin}/gic --version"
+      system "#{bin}/cmt --version"
     install: |
-      bin.install "gic"
+      bin.install "cmt"
 
 # Docker images (optional)
 # dockers:
 #   - image_templates:
-#       - "yarlson/gic:latest"
-#       - "yarlson/gic:{{ .Tag }}"
-#       - "yarlson/gic:v{{ .Major }}"
+#       - "yarlson/cmt:latest"
+#       - "yarlson/cmt:{{ .Tag }}"
+#       - "yarlson/cmt:v{{ .Major }}"
 #     dockerfile: Dockerfile
 #     build_flag_templates:
 #       - "--label=org.opencontainers.image.created={{.Date}}"
