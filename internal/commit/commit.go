@@ -1,33 +1,49 @@
 package commit
 
 import (
+	"bytes"
+	"context"
+	_ "embed"
 	"fmt"
+	"os/exec"
 	"regexp"
-	"sort"
 	"strings"
-
-	"gic/internal/client"
-	"gic/internal/git"
+	"text/template"
+	"time"
 )
+
+const DefaultTimeout = 2 * time.Minute
 
 var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 
-const (
-	// Conservative limit: ~125K tokens (500K chars ≈ 125K tokens at 4 chars/token)
-	// Leaves room for system prompt + response
-	MaxPromptChars = 500000
-	// Reserve space for prompt template overhead (~2K chars)
-	PromptOverhead = 2000
-)
+//go:embed commit_prompt.md
+var commitPromptTemplateText string
+
+var commitPromptTemplate = template.Must(template.New("commit_prompt").Parse(commitPromptTemplateText))
+
+// Generator shells out to Claude from a specific repository directory.
+type Generator struct {
+	Dir        string
+	Executable string
+	Timeout    time.Duration
+}
+
+// NewGenerator constructs a Claude-backed commit message generator.
+func NewGenerator(dir, executable string) *Generator {
+	return &Generator{
+		Dir:        dir,
+		Executable: executable,
+		Timeout:    DefaultTimeout,
+	}
+}
 
 // CleanStatus strips ANSI codes and trailing whitespace from each line.
 func CleanStatus(s string) string {
 	var cleanedLines []string
 
 	for _, line := range strings.Split(s, "\n") {
-		// Strip ANSI codes
 		cleaned := ansiRegex.ReplaceAllString(line, "")
-		// Trim trailing whitespace
+
 		cleaned = strings.TrimRight(cleaned, " \t\r")
 		if strings.Trim(cleaned, " \t\r") == "" {
 			continue
@@ -39,124 +55,93 @@ func CleanStatus(s string) string {
 	return strings.Join(cleanedLines, "\n")
 }
 
-// BuildSmartDiff creates an intelligent diff when the full diff is too large.
-func BuildSmartDiff(fileStats []git.FileChange, fullDiff string, budget int) string {
-	if len(fileStats) == 0 {
-		return fullDiff
+// GenerateMessage shells out to `claude -p "<prompt>"` to produce a commit
+// message. The prompt instructs Claude Code to gather the full diff/context
+// itself via its bash tool and emit only the commit message text.
+func (g *Generator) GenerateMessage(ctx context.Context, log, userInput string) (string, error) {
+	prompt, err := buildPrompt(log, userInput)
+	if err != nil {
+		return "", fmt.Errorf("build commit prompt: %w", err)
 	}
 
-	var result strings.Builder
+	runCtx := ctx
+	cancel := func() {}
 
-	// Write summary header with all files
-	result.WriteString("Changed Files Summary:\n")
-
-	for _, stat := range fileStats {
-		result.WriteString(fmt.Sprintf("  %s: +%d -%d lines\n", stat.Path, stat.Added, stat.Removed))
+	if g.Timeout > 0 {
+		runCtx, cancel = context.WithTimeout(ctx, g.Timeout)
 	}
 
-	result.WriteString("\n")
+	defer cancel()
 
-	summarySize := result.Len()
+	cmd := exec.CommandContext(runCtx, g.executable(), "-p", prompt)
+	cmd.Dir = g.Dir
 
-	// Sort files by total changes (smallest first - more signal, less noise)
-	sorted := make([]git.FileChange, len(fileStats))
-	copy(sorted, fileStats)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Added+sorted[i].Removed < sorted[j].Added+sorted[j].Removed
-	})
+	var stdout, stderr bytes.Buffer
 
-	// Select files that fit within budget
-	var (
-		selectedPaths []string
-		excludedPaths []string
-	)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
-	usedBudget := summarySize
-
-	for _, stat := range sorted {
-		// Estimate size per file (rough: ~5 chars per line change for context)
-		estimatedSize := (stat.Added + stat.Removed) * 5
-
-		if usedBudget+estimatedSize > budget {
-			excludedPaths = append(excludedPaths, stat.Path)
-
-			continue
+	if err := cmd.Run(); err != nil {
+		if runCtx.Err() != nil {
+			return "", fmt.Errorf("claude -p failed: %w", runCtx.Err())
 		}
 
-		selectedPaths = append(selectedPaths, stat.Path)
-		usedBudget += estimatedSize
-	}
-
-	// Get diff for selected files only
-	if len(selectedPaths) > 0 {
-		result.WriteString("Detailed Diffs (selected files):\n\n")
-
-		selectedDiff, err := git.DiffFiles(selectedPaths)
-		if err == nil {
-			result.WriteString(selectedDiff)
+		if stderr.Len() > 0 {
+			return "", fmt.Errorf("claude -p failed: %s", strings.TrimSpace(stderr.String()))
 		}
+
+		return "", fmt.Errorf("claude -p failed: %w", err)
 	}
 
-	// Note excluded files
-	if len(excludedPaths) > 0 {
-		result.WriteString(fmt.Sprintf("\n[Note: Diffs excluded for %d large files: %s]\n",
-			len(excludedPaths), strings.Join(excludedPaths, ", ")))
+	msg := strings.TrimSpace(stdout.String())
+	if msg == "" {
+		return "", fmt.Errorf("claude -p returned an empty commit message")
 	}
 
-	return result.String()
+	return msg, nil
 }
 
-// GenerateMessage uses Claude to generate a commit message.
-func GenerateMessage(accessToken, status, diff, log string, fileStats []git.FileChange, userInput string) (string, error) {
-	// Check if we have file stats and diff looks like our smart diff
-	hasSmartDiff := len(fileStats) > 0 && strings.Contains(diff, "Changed Files Summary:")
+func buildPrompt(log, userInput string) (string, error) {
+	var b strings.Builder
 
-	contextNote := ""
-	if hasSmartDiff {
-		contextNote = "\n(Note: Due to large changeset, detailed diffs shown for selected files only. Use summary above for full picture.)\n"
+	data := struct {
+		Log          string
+		UserInput    string
+		HasUserInput bool
+	}{
+		Log:          normalizePromptBlock(log, "(no prior commits)"),
+		UserInput:    normalizePromptBlock(userInput, ""),
+		HasUserInput: strings.TrimSpace(userInput) != "",
 	}
 
-	userInputSection := ""
-	if userInput != "" {
-		userInputSection = fmt.Sprintf(`
-
-User Input:
-`+"```"+`
-%s
-`+"```"+`
-`, userInput)
+	if err := commitPromptTemplate.Execute(&b, data); err != nil {
+		return "", err
 	}
 
-	prompt := fmt.Sprintf(`Analyze the following git repository state and generate a concise commit message.
+	return b.String(), nil
+}
 
-Git Status:
-`+"```"+`
-%s
-`+"```"+`
+func normalizePromptBlock(value, fallback string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		if fallback == "" {
+			return ""
+		}
 
-Git Diff:
-`+"```"+`
-%s%s
-`+"```"+`
+		return fallback + "\n"
+	}
 
-Recent Commits (for style reference):
-`+"```"+`
-%s
-`+"```"+`%s
+	if strings.HasSuffix(value, "\n") {
+		return value
+	}
 
-IMPORTANT: Your entire response must be ONLY the commit message text itself.
-Do NOT include:
-- Any analysis or explanation
-- Prefixes like "Claude:", "Here's", "Based on"
-- Phrases like "I'll analyze" or "my suggested commit message is"
-- Signatures or attributions
+	return value + "\n"
+}
 
-Write a commit message that:
-1. Summarizes the changes concisely (1-2 sentences)
-2. Focuses on WHY rather than WHAT
-3. Follows the style of recent commits shown above
+func (g *Generator) executable() string {
+	if g.Executable != "" {
+		return g.Executable
+	}
 
-Start your response directly with the commit message text.`, status, diff, contextNote, log, userInputSection)
-
-	return client.Ask(accessToken, prompt)
+	return "claude"
 }

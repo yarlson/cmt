@@ -2,6 +2,7 @@ version: "2"
 
 linters:
   enable:
+    - staticcheck
     - wsl_v5
   settings:
     wsl_v5:

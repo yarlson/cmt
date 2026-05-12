@@ -86,7 +86,7 @@ release:
   header: |
     ## gic {{.Tag}}
 
-    Git-native dotfiles management that doesn't suck.
+    Generate meaningful git commit messages with Claude Code.
 
     ### Installation
 
@@ -116,7 +116,7 @@ brews:
       branch: main
       token: "{{ .Env.GITHUB_TOKEN }}"
     homepage: "https://github.com/yarlson/gic"
-    description: "Git-native dotfiles management that doesn't suck"
+    description: "Generate meaningful git commit messages with Claude Code"
     license: "MIT"
     skip_upload: auto
     commit_author:
