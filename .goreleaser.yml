@@ -114,7 +114,8 @@ brews:
       owner: yarlson
       name: homebrew-tap
       branch: main
-      token: "{{ .Env.GITHUB_TOKEN }}"
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
     homepage: "https://github.com/yarlson/cmt"
     description: "Generate meaningful git commit messages with Claude Code"
     license: "MIT"
