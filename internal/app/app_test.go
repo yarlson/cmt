@@ -58,7 +58,7 @@ func shellQuote(s string) string {
 func newDependencies(repoDir, gitPath, claudePath string) app.Dependencies {
 	return app.Dependencies{
 		Git:       git.NewClient(repoDir, gitPath),
-		Generator: commit.NewGenerator(repoDir, claudePath),
+		Generator: commit.NewGenerator(repoDir, claudePath, ""),
 	}
 }
 

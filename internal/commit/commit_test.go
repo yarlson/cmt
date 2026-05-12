@@ -68,7 +68,7 @@ func TestGenerateMessageInvokesClaude(t *testing.T) {
 		"printf '%s\\n' \"$@\" > "+shellQuote(argsFile)+"\n"+
 		"printf '%s' "+shellQuote(expected+"\n")+"\n")
 
-	generator := commit.NewGenerator(stubDir, stubPath)
+	generator := commit.NewGenerator(stubDir, stubPath, "")
 	got, err := generator.GenerateMessage(context.Background(), "abc123 Initial commit", "")
 	require.NoError(t, err)
 	assert.Equal(t, expected, got)
@@ -94,7 +94,7 @@ func TestGenerateMessageUsesNoPriorCommitsFallback(t *testing.T) {
 		"printf '%s\\n' \"$@\" > "+shellQuote(argsFile)+"\n"+
 		"printf '%s' 'initial commit message\\n'\n")
 
-	generator := commit.NewGenerator(stubDir, stubPath)
+	generator := commit.NewGenerator(stubDir, stubPath, "")
 
 	_, err := generator.GenerateMessage(context.Background(), "", "")
 	require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestGenerateMessageForwardsUserInput(t *testing.T) {
 		"printf '%s\\n' \"$@\" > "+shellQuote(argsFile)+"\n"+
 		"printf '%s' 'fix auth bug regression\\n'\n")
 
-	generator := commit.NewGenerator(stubDir, stubPath)
+	generator := commit.NewGenerator(stubDir, stubPath, "")
 
 	_, err := generator.GenerateMessage(context.Background(), "", "fixed auth bug")
 	require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestGenerateMessageRejectsEmptyOutput(t *testing.T) {
 	stubDir := t.TempDir()
 	stubPath := writeClaudeStub(t, stubDir, "#!/bin/sh\n")
 
-	generator := commit.NewGenerator(stubDir, stubPath)
+	generator := commit.NewGenerator(stubDir, stubPath, "")
 
 	_, err := generator.GenerateMessage(context.Background(), "", "")
 	require.Error(t, err)
@@ -147,7 +147,7 @@ func TestGenerateMessageHonorsContextCancellation(t *testing.T) {
 	stubDir := t.TempDir()
 	stubPath := writeClaudeStub(t, stubDir, "#!/bin/sh\nsleep 5\n")
 
-	generator := commit.NewGenerator(stubDir, stubPath)
+	generator := commit.NewGenerator(stubDir, stubPath, "")
 	generator.Timeout = 0
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
@@ -156,4 +156,26 @@ func TestGenerateMessageHonorsContextCancellation(t *testing.T) {
 	_, err := generator.GenerateMessage(ctx, "", "")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestGenerateMessageAddsConfiguredModelFlag(t *testing.T) {
+	stubDir := t.TempDir()
+	argsFile := filepath.Join(stubDir, "argv.txt")
+	stubPath := writeClaudeStub(t, stubDir, "#!/bin/sh\n"+
+		"printf '%s\\n' \"$@\" > "+shellQuote(argsFile)+"\n"+
+		"printf '%s' 'Use configured model\\n'\n")
+
+	generator := commit.NewGenerator(stubDir, stubPath, "sonnet")
+
+	_, err := generator.GenerateMessage(context.Background(), "", "")
+	require.NoError(t, err)
+
+	argv, err := os.ReadFile(argsFile)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimRight(string(argv), "\n"), "\n")
+	require.GreaterOrEqual(t, len(lines), 4)
+	assert.Equal(t, "--model", lines[0])
+	assert.Equal(t, "sonnet", lines[1])
+	assert.Equal(t, "-p", lines[2])
 }

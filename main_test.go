@@ -81,3 +81,9 @@ func TestVersionCommandsDoNotInvokeClaude(t *testing.T) {
 		assert.Contains(t, string(out), "Built:", "cmt %v should print build metadata", args)
 	}
 }
+
+func TestModelFlagDefaultsToSonnet(t *testing.T) {
+	flag := rootCmd.Flags().Lookup("model")
+	require.NotNil(t, flag)
+	assert.Equal(t, "sonnet", flag.DefValue)
+}

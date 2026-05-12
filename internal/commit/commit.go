@@ -25,14 +25,16 @@ var commitPromptTemplate = template.Must(template.New("commit_prompt").Parse(com
 type Generator struct {
 	Dir        string
 	Executable string
+	Model      string
 	Timeout    time.Duration
 }
 
 // NewGenerator constructs a Claude-backed commit message generator.
-func NewGenerator(dir, executable string) *Generator {
+func NewGenerator(dir, executable, model string) *Generator {
 	return &Generator{
 		Dir:        dir,
 		Executable: executable,
+		Model:      strings.TrimSpace(model),
 		Timeout:    DefaultTimeout,
 	}
 }
@@ -73,7 +75,14 @@ func (g *Generator) GenerateMessage(ctx context.Context, log, userInput string) 
 
 	defer cancel()
 
-	cmd := exec.CommandContext(runCtx, g.executable(), "-p", prompt)
+	args := make([]string, 0, 4)
+	if g.Model != "" {
+		args = append(args, "--model", g.Model)
+	}
+
+	args = append(args, "-p", prompt)
+
+	cmd := exec.CommandContext(runCtx, g.executable(), args...)
 	cmd.Dir = g.Dir
 
 	var stdout, stderr bytes.Buffer

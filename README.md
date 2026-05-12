@@ -10,6 +10,13 @@ It is built for developers who want faster commits without losing intent:
 - uses recent commits as style reference
 - shows the proposed message before committing
 
+By default, `cmt` uses the `sonnet` Claude model. For this workflow, `sonnet`
+is the best default tradeoff: it is better than `haiku` at reading diffs,
+recovering intent, and writing specific commit bodies for refactors or larger
+changes, while being faster and cheaper than `opus`. Use `haiku` when you want
+lower latency over nuance, and `opus` when a change is unusually broad or
+subtle and you want the strongest reasoning available.
+
 ## Requirements
 
 - `git`
@@ -80,6 +87,13 @@ Skip the confirmation prompt when you want `cmt` to commit immediately:
 cmt --auto-approve
 ```
 
+Use a different Claude model for a single run:
+
+```bash
+cmt --model haiku
+cmt --model opus
+```
+
 Show version information:
 
 ```bash
@@ -102,7 +116,9 @@ When you run `cmt`, it:
 - `cmt` stages all current changes before generating the commit message.
 - Positional arguments after `cmt` are forwarded to Claude as additional
   context.
-- `cmt` uses the Claude model and auth already configured in Claude Code.
+- `cmt` uses Claude Code authentication and defaults to the `sonnet` model.
+- Override the model with `--model` when you want a different speed/quality
+  tradeoff.
 - The generated message is intended to explain why the change was made, not
   just restate the diff.
 

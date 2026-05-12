@@ -24,6 +24,7 @@ var (
 var (
 	showVersion bool
 	autoApprove bool
+	model       string
 
 	rootCmd = &cobra.Command{
 		Use:           "cmt [commit-message]",
@@ -65,6 +66,7 @@ func main() {
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&showVersion, "version", "v", false, "Show version information")
 	rootCmd.Flags().BoolVarP(&autoApprove, "auto-approve", "y", false, "Skip confirmation prompt and create the commit automatically")
+	rootCmd.Flags().StringVar(&model, "model", "sonnet", "Claude model alias or full model name to use")
 	rootCmd.AddCommand(versionCmd)
 }
 
@@ -106,6 +108,6 @@ func run(ctx context.Context, userInput string) error {
 
 	return app.Run(ctx, app.Dependencies{
 		Git:       git.NewClient(repoDir, gitPath),
-		Generator: commit.NewGenerator(repoDir, claudePath),
+		Generator: commit.NewGenerator(repoDir, claudePath, model),
 	}, userInput, autoApprove)
 }
