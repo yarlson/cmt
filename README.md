@@ -10,10 +10,6 @@ It is built for developers who want faster commits without losing intent:
 - uses recent commits as style reference
 - shows the proposed message before committing
 
-## Status
-
-Active. `cmt` currently ships as an interactive CLI for local git repositories.
-
 ## Requirements
 
 - `git`
