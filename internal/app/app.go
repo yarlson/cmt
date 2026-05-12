@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
-	"sync"
 
 	"cmt/internal/commit"
 	"cmt/internal/git"
+	"cmt/internal/provider"
 
 	"github.com/yarlson/tap"
 )
@@ -21,14 +20,14 @@ type ConfirmFunc func(context.Context) bool
 
 // Dependencies holds the external command clients used by the workflow.
 type Dependencies struct {
-	Git       *git.Client
-	Generator *commit.Generator
-	Confirm   ConfirmFunc
+	Git      *git.Client
+	Provider provider.Adapter
+	Confirm  ConfirmFunc
 }
 
 // Run executes the commit workflow.
 func Run(ctx context.Context, deps Dependencies, userInput string, autoApprove bool) error {
-	if deps.Git == nil || deps.Generator == nil {
+	if deps.Git == nil || deps.Provider == nil {
 		return fmt.Errorf("app dependencies are not configured")
 	}
 
@@ -38,58 +37,12 @@ func Run(ctx context.Context, deps Dependencies, userInput string, autoApprove b
 		return fmt.Errorf("failed to stage changes: %w", err)
 	}
 
-	var (
-		status, log string
-		errs        []error
-		wg          sync.WaitGroup
-		mu          sync.Mutex
-	)
-
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-
-		s, err := deps.Git.Status(ctx)
-		if err != nil {
-			mu.Lock()
-
-			errs = append(errs, fmt.Errorf("git status failed: %w", err))
-			mu.Unlock()
-
-			return
-		}
-
-		status = s
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		l, err := deps.Git.Log(ctx)
-		if err != nil {
-			if errors.Is(err, git.ErrNoCommitsYet) {
-				return
-			}
-
-			mu.Lock()
-
-			errs = append(errs, fmt.Errorf("git log failed: %w", err))
-			mu.Unlock()
-
-			return
-		}
-
-		log = l
-	}()
-
-	wg.Wait()
-
-	if len(errs) > 0 {
-		return errs[0]
+	status, err := deps.Git.Status(ctx)
+	if err != nil {
+		return fmt.Errorf("git status failed: %w", err)
 	}
 
-	if strings.TrimSpace(status) == "" {
+	if commit.CleanStatus(status) == "" {
 		tap.Outro("No changes to commit")
 		return nil
 	}
@@ -105,9 +58,9 @@ func Run(ctx context.Context, deps Dependencies, userInput string, autoApprove b
 	})
 
 	sp := tap.NewSpinner(tap.SpinnerOptions{Indicator: "dots"})
-	sp.Start("Generating commit message with Claude")
+	sp.Start("Generating commit message")
 
-	commitMsg, err := deps.Generator.GenerateMessage(ctx, log, userInput)
+	commitMsg, err := deps.Provider.GenerateCommitMessage(ctx, deps.Git.Dir, userInput)
 	if err != nil {
 		sp.Stop("Failed to generate commit message", 2)
 		return fmt.Errorf("failed to generate commit message: %w", err)

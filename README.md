@@ -1,31 +1,48 @@
 # cmt
 
-`cmt` generates git commit messages with Claude Code for the repository you are
-currently in, then lets you review and create the commit.
+`cmt` generates git commit messages with a local AI coding CLI for the
+repository you are currently in, then lets you review and create the commit.
 
 It is built for developers who want faster commits without losing intent:
 
 - stages the current working tree
-- asks Claude to inspect the repo and draft the message
-- uses recent commits as style reference
+- asks the selected provider CLI to inspect the staged snapshot and draft the
+  message
 - shows the proposed message before committing
 
-By default, `cmt` uses the `sonnet` Claude model. For this workflow, `sonnet`
-is the best default tradeoff: it is better than `haiku` at reading diffs,
-recovering intent, and writing specific commit bodies for refactors or larger
-changes, while being faster and cheaper than `opus`. Use `haiku` when you want
-lower latency over nuance, and `opus` when a change is unusually broad or
-subtle and you want the strongest reasoning available.
+`cmt` supports two hardcoded providers:
+
+- `claude` via the Claude Code CLI
+- `codex` via the Codex CLI
+
+Default provider: `claude`
+
+Default models:
+
+- `claude`: `sonnet`
+- `codex`: Codex CLI default for the active auth mode
 
 ## Requirements
 
 - `git`
 - a git repository with changes to commit
-- Claude Code CLI (`claude`) installed and authenticated
+- one supported provider CLI installed and authenticated:
+  - Claude Code CLI (`claude`)
+  - Codex CLI (`codex`)
 
-`cmt` shells out to the `claude` CLI. Install Claude Code from
-[claude.ai/code](https://claude.ai/code) and make sure `claude` works in your
-shell before using `cmt`.
+`cmt` shells out to a local provider CLI. Install Claude Code from
+[claude.ai/code](https://claude.ai/code) or Codex from the
+[OpenAI Codex docs](https://platform.openai.com/docs/codex/overview), then make
+sure the selected CLI works in your shell before using `cmt`.
+
+Tested CLI versions:
+
+- Claude Code CLI `2.1.139`
+- Codex CLI `0.130.0`
+
+These are documented test targets, not hard version gates. If a required CLI
+flag or subcommand is missing, `cmt` fails during provider preflight with a
+clear error instead of falling back.
 
 ## Install
 
@@ -87,11 +104,24 @@ Skip the confirmation prompt when you want `cmt` to commit immediately:
 cmt --auto-approve
 ```
 
-Use a different Claude model for a single run:
+Use Codex for a single run:
+
+```bash
+cmt --provider codex
+```
+
+Use a different model for a single run:
 
 ```bash
 cmt --model haiku
-cmt --model opus
+cmt --provider codex --model gpt-5
+```
+
+Set defaults with environment variables:
+
+```bash
+export CMT_PROVIDER=codex
+export CMT_MODEL=gpt-5
 ```
 
 Show version information:
@@ -106,28 +136,41 @@ cmt version
 When you run `cmt`, it:
 
 1. stages changes with `git add .`
-2. reads repository status and recent commits
-3. asks Claude Code to inspect the working tree and draft a commit message
+2. reads staged repository status
+3. asks the selected provider CLI to inspect the repo and draft a commit message
 4. shows the proposed message
 5. creates the commit after confirmation, or immediately with `-y`
 
 ## Behavior to know
 
+- Provider selection precedence is `--provider`, then `CMT_PROVIDER`, then the
+  default provider `claude`.
+- Model selection precedence is `--model`, then `CMT_MODEL`, then the selected
+  provider's default model.
 - `cmt` stages all current changes before generating the commit message.
-- Positional arguments after `cmt` are forwarded to Claude as additional
+- Positional arguments after `cmt` are forwarded to the provider as additional
   context.
-- `cmt` uses Claude Code authentication and defaults to the `sonnet` model.
-- Override the model with `--model` when you want a different speed/quality
-  tradeoff.
+- `cmt` preflights provider binary presence, required CLI capabilities, and
+  auth status before any staging or UI work.
+- `cmt` runs providers non-interactively. Codex runs in a read-only sandbox;
+  Claude is constrained with non-interactive execution, no session
+  persistence, disabled slash commands, and read-only git inspection commands
+  as far as the CLI allows.
+- When Codex is authenticated with ChatGPT, `cmt` defers to the Codex CLI's
+  built-in default model unless you explicitly set `--model` or `CMT_MODEL`.
+- Invalid model names are passed through to the provider CLI and fail there.
 - The generated message is intended to explain why the change was made, not
   just restate the diff.
+- The staged snapshot is the source of truth, but provider CLIs still inspect
+  the live repository. That means unstaged-context leakage is reduced, not
+  eliminated.
 
 ## Troubleshooting
 
 If `cmt` fails before showing the UI, check these first:
 
-- `claude` is installed and available on `PATH`
-- Claude Code is already authenticated
+- the selected provider CLI is installed and available on `PATH`
+- the selected provider CLI is already authenticated
 - you are inside a git repository
 - `git config user.name` and `git config user.email` are set
 

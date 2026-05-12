@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,7 +11,6 @@ import (
 	"testing"
 
 	"cmt/internal/app"
-	"cmt/internal/commit"
 	"cmt/internal/git"
 
 	"github.com/stretchr/testify/assert"
@@ -55,83 +55,79 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-func newDependencies(repoDir, gitPath, claudePath string) app.Dependencies {
+type stubProvider struct {
+	message  string
+	err      error
+	repoDir  string
+	userHint string
+}
+
+func (s *stubProvider) GenerateCommitMessage(_ context.Context, repoDir, userHint string) (string, error) {
+	s.repoDir = repoDir
+	s.userHint = userHint
+
+	if s.err != nil {
+		return "", s.err
+	}
+
+	return s.message, nil
+}
+
+func newDependencies(repoDir, gitPath string, adapter *stubProvider) app.Dependencies {
 	return app.Dependencies{
-		Git:       git.NewClient(repoDir, gitPath),
-		Generator: commit.NewGenerator(repoDir, claudePath, ""),
+		Git:      git.NewClient(repoDir, gitPath),
+		Provider: adapter,
 	}
 }
 
-func TestRunAutoApproveCreatesCommitFromClaudeStub(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("claude stub uses POSIX sh")
-	}
-
+func TestRunAutoApproveCreatesCommitFromProvider(t *testing.T) {
 	repoDir, gitPath := initRepo(t)
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "feature.txt"), []byte("feature"), 0o644))
 
-	stubDir := t.TempDir()
-	argsFile := filepath.Join(stubDir, "argv.txt")
-	expected := "Wire claude CLI into commit pipeline"
-	claudePath := writeExecutable(t, stubDir, "claude", "#!/bin/sh\n"+
-		"printf '%s\\n' \"$@\" > "+shellQuote(argsFile)+"\n"+
-		"printf '%s' "+shellQuote(expected+"\n")+"\n")
+	expected := "Wire provider bootstrap into commit flow"
+	adapter := &stubProvider{message: expected}
 
-	err := app.Run(context.Background(), newDependencies(repoDir, gitPath, claudePath), "wire up claude", true)
+	err := app.Run(context.Background(), newDependencies(repoDir, gitPath, adapter), "wire provider bootstrap", true)
 	require.NoError(t, err)
 
 	out, err := exec.Command(gitPath, "-C", repoDir, "log", "-1", "--pretty=%s").Output()
 	require.NoError(t, err)
 	assert.Equal(t, expected, strings.TrimSpace(string(out)))
-
-	argv, err := os.ReadFile(argsFile)
-	require.NoError(t, err)
-
-	prompt := strings.Join(strings.Split(strings.TrimRight(string(argv), "\n"), "\n")[1:], "\n")
-	assert.Contains(t, prompt, "wire up claude")
+	assert.Equal(t, repoDir, adapter.repoDir)
+	assert.Equal(t, "wire provider bootstrap", adapter.userHint)
 }
 
 func TestRunReturnsNilWhenStatusIsEmpty(t *testing.T) {
 	repoDir, gitPath := initRepo(t)
-	deps := newDependencies(repoDir, gitPath, filepath.Join(t.TempDir(), "claude-does-not-run"))
+	adapter := &stubProvider{message: "should not be used"}
 
-	err := app.Run(context.Background(), deps, "", true)
+	err := app.Run(context.Background(), newDependencies(repoDir, gitPath, adapter), "", true)
 	require.NoError(t, err)
+	assert.Equal(t, "", adapter.repoDir)
 }
 
 func TestRunReturnsErrUserCancelled(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("claude stub uses POSIX sh")
-	}
-
 	repoDir, gitPath := initRepo(t)
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "feature.txt"), []byte("feature"), 0o644))
 
-	stubDir := t.TempDir()
-	claudePath := writeExecutable(t, stubDir, "claude", "#!/bin/sh\nprintf '%s' 'Add feature\\n'\n")
-
-	deps := newDependencies(repoDir, gitPath, claudePath)
+	adapter := &stubProvider{message: "Add feature"}
+	deps := newDependencies(repoDir, gitPath, adapter)
 	deps.Confirm = func(context.Context) bool { return false }
 
 	err := app.Run(context.Background(), deps, "", false)
 	require.ErrorIs(t, err, app.ErrUserCancelled)
 }
 
-func TestRunPropagatesGeneratorFailure(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("claude stub uses POSIX sh")
-	}
-
+func TestRunPropagatesProviderFailure(t *testing.T) {
 	repoDir, gitPath := initRepo(t)
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "feature.txt"), []byte("feature"), 0o644))
 
-	stubDir := t.TempDir()
-	claudePath := writeExecutable(t, stubDir, "claude", "#!/bin/sh\necho 'boom: rate limited' 1>&2\nexit 7\n")
+	adapter := &stubProvider{err: errors.New("provider boom")}
 
-	err := app.Run(context.Background(), newDependencies(repoDir, gitPath, claudePath), "", true)
+	err := app.Run(context.Background(), newDependencies(repoDir, gitPath, adapter), "", true)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to generate commit message")
-	assert.Contains(t, err.Error(), "boom: rate limited")
+	assert.Contains(t, err.Error(), "provider boom")
 }
 
 func TestRunPropagatesCommitFailure(t *testing.T) {
@@ -143,7 +139,6 @@ func TestRunPropagatesCommitFailure(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "feature.txt"), []byte("feature"), 0o644))
 
 	stubDir := t.TempDir()
-	claudePath := writeExecutable(t, stubDir, "claude", "#!/bin/sh\nprintf '%s' 'Add feature\\n'\n")
 	failingGitPath := writeExecutable(t, stubDir, "git-wrapper", "#!/bin/sh\n"+
 		"if [ \"$1\" = 'commit' ]; then\n"+
 		"  echo 'commit blocked' 1>&2\n"+
@@ -151,7 +146,9 @@ func TestRunPropagatesCommitFailure(t *testing.T) {
 		"fi\n"+
 		"exec "+shellQuote(gitPath)+" \"$@\"\n")
 
-	err := app.Run(context.Background(), newDependencies(repoDir, failingGitPath, claudePath), "", true)
+	adapter := &stubProvider{message: "Add feature"}
+
+	err := app.Run(context.Background(), newDependencies(repoDir, failingGitPath, adapter), "", true)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create commit")
 	assert.Contains(t, err.Error(), "commit blocked")

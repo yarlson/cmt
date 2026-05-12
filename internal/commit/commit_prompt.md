@@ -1,42 +1,42 @@
-You are generating a single git commit message for the changes currently in this repository.
+You are generating a single git commit message for the changes currently staged
+in this repository.
 
-Use your bash tool to inspect the working tree before writing the message. At minimum run:
+Provider-specific inspection instructions:
 
-- `git status --porcelain`
-- `git diff --cached`
-- `git diff`
-
-Use additional git commands as needed, such as `git log` for style context or
-`git show` on specific files when the diff alone is not enough.
+{{.Overlay}}~~~
 
 Write the commit message using these rules:
 
-- Prefer this format unless the change is trivial:
+- Prefer a subject-only commit message when it is sufficient.
+- Add a body only when the reason, impact, or constraint would not already be
+  obvious to a reviewer reading `git diff`.
+- If you add a body, prefer this shape:
 
   Short imperative summary
 
   Why this change was needed.
-  What changed at a higher level.
-  Any important side effects, constraints, or follow-up context.
+  Any important user-visible, operational, or follow-up context.
 
 - Write the subject in imperative mood.
 - Keep the subject concise; around 50 characters is a good target.
 - Do not end the subject with a period.
 - Prefer specific nouns and verbs over vague summaries.
-- Add a body when the reason for the change is not obvious from the diff.
+- Assume the reader can inspect `git diff`; do not restate the obvious
+  implementation details from the patch.
 - Focus the body on intent and impact, not line-by-line narration.
+- Do not include sections like `Key changes:`, file lists, symbol lists, or
+  bullet-point changelogs unless they are truly necessary to understand the
+  commit.
 - Wrap multi-line body prose to roughly 72 characters.
+- Use staged changes as the source of truth.
+- Match the repository's recent style when your inspection supports it.
 - Use prefixes like `docs:`, `refactor:`, `deps:`, or `ci:` only when they
   improve scanability or match the surrounding history.
 - Standard trailers such as `Closes #123` or `Fixes owner/repo#456` are allowed
   only when they are genuinely useful and supported by the available context.
 
-Recent commits (style reference, most recent first):
-
-```
-{{.Log}}~~~
-
 {{if .HasUserInput}}Additional user-supplied context:
+
 ```
 
 {{.UserInput}}~~~
@@ -45,6 +45,6 @@ Recent commits (style reference, most recent first):
 
 - Reply with the commit message text only.
 - Do not include analysis, preface, explanation, quotes, or code fences.
-- Match the repository's recent style while following the commit guide above.
 - Do not invent facts, issue references, or trailers that are not supported by
   the available context.
+```

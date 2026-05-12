@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"cmt/internal/app"
-	"cmt/internal/commit"
 	"cmt/internal/git"
+	"cmt/internal/provider"
 
 	"github.com/spf13/cobra"
 	"github.com/yarlson/tap"
@@ -22,9 +22,10 @@ var (
 )
 
 var (
-	showVersion bool
-	autoApprove bool
-	model       string
+	showVersion  bool
+	autoApprove  bool
+	modelFlag    string
+	providerFlag string
 
 	rootCmd = &cobra.Command{
 		Use:           "cmt [commit-message]",
@@ -40,7 +41,7 @@ var (
 
 			userInput := strings.Join(args, " ")
 
-			return run(cmd.Context(), userInput)
+			return run(cmd.Context(), cmd, userInput)
 		},
 	}
 
@@ -66,7 +67,8 @@ func main() {
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&showVersion, "version", "v", false, "Show version information")
 	rootCmd.Flags().BoolVarP(&autoApprove, "auto-approve", "y", false, "Skip confirmation prompt and create the commit automatically")
-	rootCmd.Flags().StringVar(&model, "model", "sonnet", "Claude model alias or full model name to use")
+	rootCmd.Flags().StringVar(&providerFlag, "provider", "", "Provider to use (`claude` or `codex`)")
+	rootCmd.Flags().StringVar(&modelFlag, "model", "", "Model name to use (defaults depend on the selected provider)")
 	rootCmd.AddCommand(versionCmd)
 }
 
@@ -90,15 +92,37 @@ func printVersion() {
 	tap.Outro("Run `cmt` without flags to launch the assistant ✨")
 }
 
-func run(ctx context.Context, userInput string) error {
+func run(ctx context.Context, cmd *cobra.Command, userInput string) error {
 	gitPath, err := exec.LookPath("git")
 	if err != nil {
 		return fmt.Errorf("required executable `git` not found in $PATH: %w", err)
 	}
 
-	claudePath, err := exec.LookPath("claude")
+	providerID := resolveOption(cmd, "provider", "CMT_PROVIDER", provider.DefaultProviderID)
+
+	definition, err := provider.Lookup(providerID)
 	if err != nil {
-		return fmt.Errorf("required executable `claude` not found in $PATH: %w", err)
+		return err
+	}
+
+	executablePath, err := exec.LookPath(definition.ExecutableName)
+	if err != nil {
+		return fmt.Errorf("required executable `%s` not found in $PATH: %w", definition.ExecutableName, err)
+	}
+
+	if err := provider.Preflight(ctx, definition, executablePath); err != nil {
+		return err
+	}
+
+	explicitModel := resolveOption(cmd, "model", "CMT_MODEL", "")
+	effectiveModel := definition.DefaultModel
+	if definition.ResolveModel != nil {
+		effectiveModel, err = definition.ResolveModel(ctx, executablePath, explicitModel)
+		if err != nil {
+			return err
+		}
+	} else if explicitModel != "" {
+		effectiveModel = explicitModel
 	}
 
 	repoDir, err := os.Getwd()
@@ -106,8 +130,38 @@ func run(ctx context.Context, userInput string) error {
 		return fmt.Errorf("failed to determine current directory: %w", err)
 	}
 
+	adapter := definition.NewAdapter(executablePath, effectiveModel)
+
 	return app.Run(ctx, app.Dependencies{
-		Git:       git.NewClient(repoDir, gitPath),
-		Generator: commit.NewGenerator(repoDir, claudePath, model),
+		Git:      git.NewClient(repoDir, gitPath),
+		Provider: adapter,
 	}, userInput, autoApprove)
+}
+
+func resolveOption(cmd *cobra.Command, flagName, envName, fallback string) string {
+	if cmd.Flags().Changed(flagName) {
+		if trimmed := strings.TrimSpace(flagValue(cmd, flagName)); trimmed != "" {
+			return trimmed
+		}
+
+		return fallback
+	}
+
+	if envValue, ok := os.LookupEnv(envName); ok {
+		trimmed := strings.TrimSpace(envValue)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+
+	return fallback
+}
+
+func flagValue(cmd *cobra.Command, name string) string {
+	value, err := cmd.Flags().GetString(name)
+	if err != nil {
+		return ""
+	}
+
+	return value
 }
