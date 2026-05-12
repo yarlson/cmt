@@ -88,6 +88,7 @@ func (a *claudeAdapter) GenerateCommitMessage(ctx context.Context, repoDir, user
 	cmd.Dir = repoDir
 
 	var stdout bytes.Buffer
+
 	var stderr bytes.Buffer
 
 	cmd.Stdout = &stdout

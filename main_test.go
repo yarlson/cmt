@@ -95,6 +95,7 @@ func TestVersionCommandsDoNotInvokeProviders(t *testing.T) {
 
 func TestResolveOptionPrecedence(t *testing.T) {
 	cmd := newTestCommand()
+
 	t.Setenv("CMT_PROVIDER", "claude")
 
 	require.NoError(t, cmd.Flags().Set("provider", "codex"))
@@ -103,6 +104,7 @@ func TestResolveOptionPrecedence(t *testing.T) {
 
 func TestResolveOptionFallsBackToEnvThenDefault(t *testing.T) {
 	cmd := newTestCommand()
+
 	t.Setenv("CMT_MODEL", "opus")
 
 	assert.Equal(t, "opus", resolveOption(cmd, "model", "CMT_MODEL", "sonnet"))

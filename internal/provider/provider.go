@@ -75,6 +75,7 @@ func runCommand(ctx context.Context, executablePath string, args ...string) (com
 	cmd := exec.CommandContext(ctx, executablePath, args...)
 
 	var stdout bytes.Buffer
+
 	var stderr bytes.Buffer
 
 	cmd.Stdout = &stdout

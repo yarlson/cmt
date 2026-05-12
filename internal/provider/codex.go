@@ -102,7 +102,10 @@ func (a *codexAdapter) GenerateCommitMessage(ctx context.Context, repoDir, userH
 
 	outputPath := outputFile.Name()
 	_ = outputFile.Close()
-	defer os.Remove(outputPath)
+
+	defer func() {
+		_ = os.Remove(outputPath)
+	}()
 
 	args := []string{
 		"--ask-for-approval", "never",

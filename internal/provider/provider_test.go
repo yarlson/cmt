@@ -16,7 +16,9 @@ import (
 
 func writeExecutable(t *testing.T, dir, name, script string) string {
 	t.Helper()
+
 	path := filepath.Join(dir, name)
+
 	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
 
 	return path
@@ -28,6 +30,7 @@ func shellQuote(s string) string {
 
 func requirePOSIXShell(t *testing.T) {
 	t.Helper()
+
 	if runtime.GOOS == "windows" {
 		t.Skip("provider stubs use POSIX sh")
 	}

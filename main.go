@@ -115,7 +115,9 @@ func run(ctx context.Context, cmd *cobra.Command, userInput string) error {
 	}
 
 	explicitModel := resolveOption(cmd, "model", "CMT_MODEL", "")
+
 	effectiveModel := definition.DefaultModel
+
 	if definition.ResolveModel != nil {
 		effectiveModel, err = definition.ResolveModel(ctx, executablePath, explicitModel)
 		if err != nil {
